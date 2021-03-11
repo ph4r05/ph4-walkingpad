@@ -1,0 +1,9 @@
+.idea
+*.pyc
+dist
+bin
+*.egg-info
+Virtualenv
+build
+venv
+.ipynb_checkpoints
