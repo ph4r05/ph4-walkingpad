@@ -1,6 +1,6 @@
 # WalkingPad controller
 
-Simple python script that can control Kingsmith WalkingPad A1.
+Simple python script that can control KingSmith WalkingPad A1.
 Communicates via [Bluetooth LE GATT](https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html).
 
 
@@ -39,3 +39,50 @@ Controlling script is not yet implemented.
 Play with the notebook.
 
 The main controller class is `Controller` in [pad.py](ph4_walkingpad/pad.py)
+
+
+## Controller
+
+Controller enables to control the belt via CLI shell.
+
+Start controller: 
+```bash
+python -m ph4_walkingpad.main --stats 750 --json-file ~/walking.json
+```
+
+The command asks for periodic statistics fetching at 750 ms, storing records to `~/walking.json`.
+
+Output
+```
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    WalkingPad controller
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+$> help
+
+Documented commands (use 'help -v' for verbose/'help <topic>' for details):
+===========================================================================
+alias      help     py  quit          set        speed   stop       
+ask_stats  history  Q   run_pyscript  shell      start   switch_mode
+edit       macro    q   run_script    shortcuts  status  tasks    
+
+$> status
+WalkingPadCurStatus(dist=0.0, time=0, steps=0, speed=0.0, state=5, mode=2, app_speed=0.06666666666666667, button=2, rest=0000)
+$> start
+$> speed 30
+$> speed 15
+$> status
+WalkingPadCurStatus(dist=0.01, time=16, steps=18, speed=1.8, state=1, mode=1, app_speed=1.5, button=1, rest=0000)
+$> status
+WalkingPadCurStatus(dist=0.01, time=17, steps=20, speed=1.5, state=1, mode=1, app_speed=1.5, button=1, rest=0000)
+$> speed 30      
+$> speed 30
+$> stop
+$> start
+$> speed 30
+$> status
+```
+
+Due to nature of the BluetoothLE callbacks being executed on the main thread we cannot use readline to read from the console.
+(At least I have currently no idea how to do it).
+

@@ -12,6 +12,7 @@
 
 import asyncio
 import logging
+import sys
 
 import ph4acmd2
 from blessed import Terminal
@@ -24,10 +25,17 @@ class Ph4Cmd(ph4acmd2.Cmd):
 
     def __init__(self, *args, **kwargs):
         super().__init__(allow_cli_args=False, **kwargs)
-
         self.t = Terminal()
         self.worker_loop = None
         self.cmd_running = True
+
+    async def _read_line(self):
+        while True:
+            # line = await self.loop.run_in_executor(None, sys.stdin.readline)
+            line = await self.loop.run_in_executor(None, lambda: self._read_command_line(self.prompt))
+            self._exec_cmd(line)
+            print(self.prompt)
+            sys.stdout.flush()
 
     def looper(self, loop):
         logger.debug('Starting looper for loop %s' % (loop,))
