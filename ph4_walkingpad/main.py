@@ -178,7 +178,7 @@ class WalkingPadControl(Ph4Cmd):
 
         ccal, ccal_net, ccal_sum, ccal_net_sum = None, None, None, None
         if el_time > 0 and el_dist > 0:
-            ccal = (el_time/60) * calories_walk2_minute(status.speed/10., self.profile.weight, 0.00)
+            ccal = (el_time/60) * calories_walk2_minute(self.last_speed_change_rec.speed/10., self.profile.weight, 0.00)
             ccal_net = ccal - (el_time/60) * calories_rmrcb_minute(self.profile.weight, self.profile.height,
                                                                    self.profile.age, self.profile.male)
             ccal_sum = sum(self.calorie_acc) + ccal
