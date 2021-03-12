@@ -181,8 +181,10 @@ class Controller:
         self.char_fe02 = None
         self.client = None
         self.last_raw_cmd = None
+        self.last_cmd_time = None
         self.last_status = None
         self.last_record = None
+        self.minimal_cmd_space = 0.69
 
         self.handler_cur_status = None
         self.handler_last_status = None
@@ -248,9 +250,15 @@ class Controller:
 
     async def send_cmd(self, cmd):
         self.fix_crc(cmd)
+        if self.last_cmd_time and time.time() - self.last_cmd_time < self.minimal_cmd_space:
+            to_sleep = max(0, min(time.time() - self.last_cmd_time, self.minimal_cmd_space))
+            await asyncio.sleep(to_sleep)
+
         return await self.send_cmd_raw(cmd)
 
     async def send_cmd_raw(self, cmd):
+        self.last_raw_cmd = cmd
+        self.last_cmd_time = time.time()
         r = await self.client.write_gatt_char(self.char_fe02, cmd)
         return r
 

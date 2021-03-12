@@ -328,7 +328,7 @@ class WalkingPadControl(Ph4Cmd):
 
             self.calorie_acc.append(ccal)
             self.calorie_acc_net.append(ccal_net)
-        logger.debug('Calories burned so far this walk: %7.2f kcal, %7.2f kcal net'
+        self.poutput('Calories burned so far this walk: %7.2f kcal, %7.2f kcal net'
                      % (sum(self.calorie_acc), sum(self.calorie_acc_net)))
 
     def compute_initial_cal(self, status: WalkingPadCurStatus):
