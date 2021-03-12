@@ -483,6 +483,10 @@ class WalkingPadControl(Ph4Cmd):
         """Print the last received status"""
         print(self.ctler.last_status)
 
+    def do_s(self, line):
+        """Print the next received status"""
+        self.asked_status = True
+
     def do_profile(self, line):
         """Prints currently loaded profile"""
         print(self.profile)
