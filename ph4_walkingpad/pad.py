@@ -4,6 +4,7 @@
 import asyncio
 import binascii
 import logging
+import time
 
 from bleak import discover
 from bleak import BleakClient
@@ -104,6 +105,7 @@ class WalkingPadCurStatus:
         self.app_speed = 0
         self.belt_state = 0
         self.manual_mode = 0
+        self.rtime = 0
 
     def load_from(self, cmd):
         self.raw = bytearray(cmd)
@@ -115,6 +117,7 @@ class WalkingPadCurStatus:
         self.steps = WalkingPad.byte2int(cmd[11:])
         self.app_speed = cmd[14]  # / 30
         self.controller_button = cmd[16]
+        self.rtime = time.time()
 
     @staticmethod
     def check_type(cmd):
@@ -142,12 +145,14 @@ class WalkingPadLastStatus:
         self.dist = 0
         self.time = 0
         self.steps = 0
+        self.rtime = 0
 
     def load_from(self, cmd):
         self.raw = bytearray(cmd)
         self.time = WalkingPad.byte2int(cmd[8:])
         self.dist = WalkingPad.byte2int(cmd[11:])
         self.steps = WalkingPad.byte2int(cmd[14:])
+        self.rtime = time.time()
 
     @staticmethod
     def check_type(cmd):

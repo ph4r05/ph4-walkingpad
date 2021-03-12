@@ -7,3 +7,4 @@ Virtualenv
 build
 venv
 .ipynb_checkpoints
+profile.json
