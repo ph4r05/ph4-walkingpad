@@ -15,6 +15,7 @@ install_requires = [
     'bleak',
     'ph4-acmd2==0.0.1',
     'blessed',
+    'requests',
 ]
 
 dev_extras = [

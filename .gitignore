@@ -8,3 +8,5 @@ build
 venv
 .ipynb_checkpoints
 profile.json
+account-data.json
+
