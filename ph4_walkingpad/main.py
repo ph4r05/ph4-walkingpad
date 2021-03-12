@@ -195,6 +195,7 @@ class WalkingPadControl(Ph4Cmd):
                 self.calorie_acc_net.append(self.cur_cal_net)
 
             self.cur_cal = 0
+            self.cur_cal_net = 0
             self.last_speed_change_rec = status
 
         ccal_str = ''
