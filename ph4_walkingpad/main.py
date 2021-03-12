@@ -33,6 +33,8 @@ class WalkingPadControl(Ph4Cmd):
         self.stats_loop = None
         self.stats_task = None
         self.stats_collecting = False
+        self.asked_status = False
+        self.asked_status_beep = False
 
     def __del__(self):
         self.submit_coro(self.disconnect())
@@ -53,6 +55,8 @@ class WalkingPadControl(Ph4Cmd):
 
         await self.ctler.ask_profile()
         await asyncio.sleep(1.5)
+        await self.ask_beep()
+        await asyncio.sleep(1.0)
 
     async def work(self):
         self.worker_loop = asyncio.new_event_loop()
@@ -144,6 +148,13 @@ class WalkingPadControl(Ph4Cmd):
         if not self.args.json_file:
             return
 
+        if self.asked_status:
+            self.asked_status = False
+            print(status)
+        elif self.asked_status_beep:
+            self.asked_status_beep = False
+            print(status)
+
         js = OrderedDict()
         js["time"] = status.time
         js["dist"] = status.dist
@@ -160,7 +171,7 @@ class WalkingPadControl(Ph4Cmd):
             fh.write("\n")
 
     def on_last_record(self, sender, status: WalkingPadLastStatus):
-        pass
+        print(status)
 
     async def main(self):
         logger.debug('App started')
@@ -171,7 +182,7 @@ class WalkingPadControl(Ph4Cmd):
 
         if self.args.debug:
             coloredlogs.install(level=logging.DEBUG)
-        elif self.args.info:
+        elif self.args.info or self.args.scan:
             coloredlogs.install(level=logging.INFO)
         else:
             coloredlogs.install(level=logging.WARNING)
@@ -223,6 +234,14 @@ class WalkingPadControl(Ph4Cmd):
         else:
             print('Unknown mode: %s. Supported: manual, auto, standby' % (mode,))
 
+    async def ask_beep(self):
+        self.asked_status_beep = True
+        await self.ctler.cmd_162_3_7()
+
+    async def ask_status(self):
+        self.asked_status = True
+        await self.ctler.ask_stats()
+
     def do_quit(self, line):
         """Terminate the shell"""
         self.stats_collecting = True
@@ -236,7 +255,15 @@ class WalkingPadControl(Ph4Cmd):
 
     def do_ask_stats(self, line):
         """Asks for the latest status, does not print anything"""
-        self.submit_coro(self.ctler.ask_stats())
+        self.submit_coro(self.ask_status())
+
+    def do_ask_beep(self, line):
+        """Asks for the latest status, does not print anything"""
+        self.submit_coro(self.ask_beep())
+
+    def do_ask_last(self, line):
+        """Asks for the latest record, does not print anything"""
+        self.submit_coro(self.ctler.ask_hist())
 
     def do_speed(self, line):
         """Change speed of the running belt. Enter as speed * 10, e.g. 20 for 2.0 km/h"""
