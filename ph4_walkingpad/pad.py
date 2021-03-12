@@ -2,12 +2,16 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import logging
 import binascii
 import logging
 
 from bleak import discover
 from bleak import BleakClient
+
+# typing
+if False:
+    from bleak.backends.device import BLEDevice
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,7 @@ class Scanner:
         self.devices_dict = {}
         self.devices_list = []
         self.receive_data = []
+        self.walking_belt_candidates = []  # type: list[BLEDevice]
 
     async def scan(self):
         logger.info("Scanning for peripherals...")
@@ -31,6 +36,9 @@ class Scanner:
             self.devices_dict[dev[i].address].append(dev[i].name)
             self.devices_dict[dev[i].address].append(dev[i].metadata["uuids"])
             self.devices_list.append(dev[i].address)
+
+            if 'walkingpad' in dev[i].name.lower():
+                self.walking_belt_candidates.append(dev[i])
 
 
 class WalkingPad:
@@ -159,7 +167,11 @@ class WalkingPadLastStatus:
 
 
 class Controller:
-    def __init__(self):
+    def __init__(self, address=None, do_read_chars=True):
+        self.address = address
+        self.do_read_chars = do_read_chars
+        self.log_messages_info = True
+
         self.char_fe01 = None
         self.char_fe02 = None
         self.client = None
@@ -167,25 +179,65 @@ class Controller:
         self.last_status = None
         self.last_record = None
 
+        self.handler_cur_status = None
+        self.handler_last_status = None
+        self.handler_message = None
+
+    async def __aenter__(self):
+        await self.run()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.disconnect()
+
     def notif_handler(self, sender, data):
-        logger.info('Msg: %s' % (', '.join('{:02x}'.format(x) for x in data)))
+        logger_fnc = logger.info if self.log_messages_info else logger.debug
+        logger_fnc('Msg: %s' % (', '.join('{:02x}'.format(x) for x in data)))
+        already_notified = False
+
         if WalkingPadCurStatus.check_type(data):
             m = WalkingPadCurStatus.from_data(data)
             self.last_status = m
-            logger.info('Status: %s' % (m,))
+            already_notified = True
+            self.on_cur_status_received(sender, m)
+            if self.handler_cur_status:
+                self.handler_cur_status(sender, m)
+            logger_fnc('Status: %s' % (m,))
 
         elif WalkingPadLastStatus.check_type(data):
             m = WalkingPadLastStatus.from_data(data)
             self.last_record = None
-            logger.info('Record: %s' % (m,))
+            already_notified = True
+            self.on_last_status_received(sender, m)
+            if self.handler_last_status:
+                self.handler_last_status(sender, m)
+            logger_fnc('Record: %s' % (m,))
+
+        self.on_message_received(sender, data, already_notified)
+        if self.handler_message:
+            self.handler_message(sender, data, already_notified)
+
+    def on_message_received(self, sender, data, already_notified=False):
+        """Override to use as message callback"""
+
+    def on_cur_status_received(self, sender, status: WalkingPadCurStatus):
+        """Override to receive current status"""
+
+    def on_last_status_received(self, sender, status: WalkingPadLastStatus):
+        """Override to receive last status"""
 
     def fix_crc(self, cmd):
         return WalkingPad.fix_crc(cmd)
 
     async def disconnect(self):
+        logger.info("Disconnecting")
         await self.client.disconnect()
 
-    async def connect(self, address):
+    async def connect(self, address=None):
+        address = address or self.address
+        if not address:
+            raise ValueError('No address given to connect to')
+
         self.client = BleakClient(address)
         return await self.client.connect()
 
@@ -260,7 +312,7 @@ class Controller:
     async def set_pref_target(self, target_type: int = 0, value: int = 0):
         return await self.set_pref_int(WalkingPad.PREFS_TARGET, value, target_type)
 
-    async def run(self, address):
+    async def run(self, address=None):
         await self.connect(address)
         client = self.client
 
@@ -273,14 +325,15 @@ class Controller:
         for service in client.services:
             logger.info("[Service] {0}: {1}".format(service.uuid, service.description))
             for char in service.characteristics:
+                value = None
                 if "read" in char.properties:
                     try:
-                        value = None  # bytes(await client.read_gatt_char(char.uuid))
+                        if self.do_read_chars and char.uuid != '0000fe01-0000-1000-8000-00805f9b34fb':
+                            value = bytes(await client.read_gatt_char(char.uuid))
                     except Exception as e:
-                        logger.debug('read failed for %s' % (char.uuid,))
+                        logger.info('read failed for %s' % (char.uuid,))
                         value = str(e).encode()
-                else:
-                    value = None
+
                 logger.info(
                     "\t[Characteristic] {0}: (Handle: {1}) ({2}) | Name: {3}, Value: {4} ".format(
                         char.uuid,
@@ -306,9 +359,9 @@ class Controller:
                     )
 
         try:
-            CHARACTERISTIC_UUID = self.char_fe01.uuid
-            logger.info('Enabling notification for %s' % (CHARACTERISTIC_UUID,))
-            await client.start_notify(CHARACTERISTIC_UUID, self.notif_handler)
+            logger.info('Enabling notification for %s' % (self.char_fe01.uuid,))
+            await client.start_notify(self.char_fe01.uuid, self.notif_handler)
+
         except Exception as e:
             logger.warning("Notify failed: %s" % (e,))
 

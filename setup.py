@@ -3,7 +3,7 @@ import sys
 from setuptools import setup
 from setuptools import find_packages
 
-version = '0.0.1'
+version = '0.0.2'
 
 # Please update tox.ini when modifying dependency version requirements
 install_requires = [
@@ -13,6 +13,8 @@ install_requires = [
     'asyncio',
     'coloredlogs',
     'bleak',
+    'ph4-acmd2==0.0.1',
+    'blessed',
 ]
 
 dev_extras = [
@@ -69,7 +71,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'ph4-walkingpad-ctl = ph4_walkingpad.ctl:main',
+            'ph4-walkingpad-ctl = ph4_walkingpad.main:main',
         ],
     }
 )
