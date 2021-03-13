@@ -10,6 +10,10 @@ def try_fnc(fnc):
         pass
 
 
+def defval(js, key, default=None):
+    return js[key] if key in js else default
+
+
 def setup_logging():
     log = logging.getLogger(__name__)
     log.setLevel(logging.DEBUG)

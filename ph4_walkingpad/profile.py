@@ -1,6 +1,8 @@
 import json
 import math
 
+from ph4_walkingpad.utils import defval
+
 
 def calories_bmr(weight: float, height: float, age: float, male=True) -> float:
     """http://www.shapesense.com/fitness-exercise/calculators/net-versus-gross-calorie-burn-conversion-calculator.shtml"""
@@ -51,12 +53,27 @@ def calories_walk2_minute(speed: float, weight: float, deg: float):
 
 
 class Profile:
-    def __init__(self, pid=None, male=True, age=0, weight=0, height=0):
+    def __init__(self, pid=None, male=True, age=0, weight=0, height=0, token=None):
         self.pid = pid
         self.male = male
         self.age = age
         self.weight = weight
         self.height = height
+        self.token = token
+
+    def load_from(self, js):
+        self.pid = defval(js, 'id')
+        self.male = defval(js, 'male')
+        self.age = defval(js, 'age')
+        self.weight = defval(js, 'weight')
+        self.height = defval(js, 'height')
+        self.token = defval(js, 'token')
+
+    @staticmethod
+    def from_data(data):
+        m = Profile()
+        m.load_from(data)
+        return m
 
     def __str__(self):
         return 'Profile(pid=%s, male=%s, age=%s, weight=%s, height=%s)' \

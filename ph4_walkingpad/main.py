@@ -242,8 +242,7 @@ class WalkingPadControl(Ph4Cmd):
             return
         with open(self.args.profile, 'r') as fh:
             dt = json.load(fh)
-            self.profile = Profile(pid=dt['id'], male=dt['male'], age=dt['age'], weight=dt['weight'],
-                                   height=dt['height'])
+            self.profile = Profile.load_from(dt)
 
     def load_stats(self):
         """Compute last unfinished walk from the stats file (segments of the same speed)"""

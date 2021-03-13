@@ -1,0 +1,8 @@
+{
+  "id": "user1",
+  "male": true,
+  "age": 25,
+  "weight": 80,
+  "height": 1.80,
+  "token": "JWT-token"
+}

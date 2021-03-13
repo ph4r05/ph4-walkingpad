@@ -66,8 +66,7 @@ class CalMeter:
         if self.args.profile:
             with open(self.args.profile, 'r') as fh:
                 dt = json.load(fh)
-                self.profile = Profile(pid=dt['id'], male=dt['male'], age=dt['age'], weight=dt['weight'],
-                                       height=dt['height'])
+                self.profile = Profile.load_from(dt)
 
         if self.args.weight:
             self.profile.weight = self.args.weight
