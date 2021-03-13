@@ -16,7 +16,7 @@ import coloredlogs
 from ph4_walkingpad.cmd import Ph4Cmd
 from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
 from ph4_walkingpad.profile import Profile, calories_walk2_minute, calories_rmrcb_minute
-from ph4_walkingpad.reader import reverse_file
+from ph4_walkingpad.analysis import StatsAnalysis
 
 logger = logging.getLogger(__name__)
 coloredlogs.CHROOT_FILES = []
@@ -31,6 +31,7 @@ class WalkingPadControl(Ph4Cmd):
         self.args_src = None
         self.ctler = None  # type: Optional[Controller]
         self.profile = None
+        self.analysis = None  # type: Optional[StatsAnalysis]
         self.loaded_margins = []
 
         self.worker_thread = None
@@ -58,6 +59,9 @@ class WalkingPadControl(Ph4Cmd):
             await self.ctler.disconnect()
 
     async def connect(self, address):
+        if self.args.no_bt:
+            return
+
         self.ctler = Controller(address=address, do_read_chars=False)
         self.ctler.log_messages_info = self.args.cmd
         self.ctler.handler_cur_status = self.on_status
@@ -103,12 +107,16 @@ class WalkingPadControl(Ph4Cmd):
                 print("Terminating")
 
         self.stats_collecting = False
-        await asyncio.sleep(1)
+        if not self.args.no_bt:
+            await asyncio.sleep(1)
 
         logger.info('Terminating')
         return res
 
     async def scan_address(self):
+        if self.args.no_bt:
+            return
+
         address = self.args.address
         if not address or self.args.scan:
             scanner = Scanner()
@@ -130,6 +138,9 @@ class WalkingPadControl(Ph4Cmd):
         self.stats_thread.start()
 
     def start_stats_fetching(self):
+        if self.args.no_bt:
+            return
+
         if self.stats_thread is None:
             self.init_stats_fetcher()
 
@@ -147,17 +158,22 @@ class WalkingPadControl(Ph4Cmd):
                 logger.info("Error in ask stats: %s" % (e,))
 
     async def entry(self):
+        aux = " (bluetooth disabled)" if self.args.no_bt else ""
         self.intro = (
                 "-" * self.get_term_width()
-                + "\n    WalkingPad controller\n"
+                + "\n    WalkingPad controller" + aux + "\n"
                 + "\n"
                 + "-" * self.get_term_width()
         )
 
-        await self.acmdloop()
+        if self.args.no_bt:
+            self.cmdloop()
+        else:
+            await self.acmdloop()
 
     def on_status(self, sender, status: WalkingPadCurStatus):
         # Calories computation with respect to the last segment of the same speed.
+        # TODO: refactor to analysis file
         if self.last_time_steps[0] > status.time \
                 or self.last_time_steps[1] > status.steps:
             logger.debug('Resetting calorie measurements')
@@ -249,85 +265,15 @@ class WalkingPadControl(Ph4Cmd):
         if not self.args.json_file:
             return
 
-        # Load margins - boundary speed changes. In order to determine segments of the same speed.
-        last_rec = None
-        last_rec_diff = None
-        margins = []
-        with open(self.args.json_file) as fh:
-            reader = reverse_file(fh)
-            for line in reader:
-                if line is None:
-                    return
-                if not line:
-                    continue
+        self.analysis = StatsAnalysis(profile=self.profile, stats_file=self.args.json_file)
+        accs = self.analysis.load_last_stats()
 
-                try:
-                    js = json.loads(line)
-                except Exception as e:
-                    continue
+        self.calorie_acc = accs[0]
+        self.calorie_acc_net = accs[1]
 
-                if not last_rec_diff:
-                    last_rec_diff = js
-                    last_rec = js
-                    margins.append(js)
-                    continue
-
-                time_diff = last_rec['time'] - js['time']
-                steps_diff = last_rec['steps'] - js['steps']
-                dist_diff = last_rec['dist'] - js['dist']
-                rtime_diff = last_rec['rec_time'] - js['rec_time']
-                time_to_rtime = abs(time_diff - rtime_diff)
-
-                breaking = time_diff < 0 or steps_diff < 0 or dist_diff < 0 or rtime_diff < 0 or time_to_rtime > 5*60
-                if last_rec_diff['speed'] != js['speed'] \
-                        or (breaking and last_rec_diff['speed'] != 0) \
-                        or (js['speed'] == 0 and js['time'] == 0):
-
-                    js['_breaking'] = breaking
-                    js['_ldiff'] = [time_diff, steps_diff, dist_diff, rtime_diff]
-                    if margins:
-                        mm = margins[-1]
-                        mm['_segment_time'] = last_rec_diff['time'] - js['time']
-                        mm['_segment_rtime'] = last_rec_diff['rec_time'] - js['rec_time']
-                        mm['_segment_dist'] = last_rec_diff['dist'] - js['dist']
-                        mm['_segment_steps'] = last_rec_diff['steps'] - js['steps']
-                    margins.append(js)
-
-                    last_rec_diff = js
-                    if (js['speed'] == 0 and js['time'] == 0) or breaking:
-                        # print("done", breaking, time_to_rtime, time_diff, steps_diff, dist_diff, rtime_diff, js)
-                        break
-
-                # last inst.
-                last_rec = js
-        self.loaded_margins = margins
-        logger.debug(json.dumps(margins, indent=2))
-
-        # Calories segment computation
-        if not self.profile:
-            logger.debug('No profile loaded')
-            return
-
-        for exp in margins:
-            if '_segment_time' not in exp:
-                continue
-
-            el_time = exp['_segment_time']
-            speed = exp['speed'] / 10.
-
-            ccal = (el_time / 60) * calories_walk2_minute(speed, self.profile.weight, 0.00)
-            ccal_net = ccal - (el_time / 60) * calories_rmrcb_minute(self.profile.weight, self.profile.height,
-                                                                     self.profile.age, self.profile.male)
-
-            logger.debug('Calories for time %5s, speed %4.1f, seg time: %4s, dist: %5.2f, steps: %5d, '
-                         'cal: %7.2f, ncal: %7.2f'
-                         % (exp['time'], speed, el_time, exp['_segment_dist'] / 100., exp['_segment_steps'],
-                            ccal, ccal_net))
-
-            self.calorie_acc.append(ccal)
-            self.calorie_acc_net.append(ccal_net)
-        self.poutput('Calories burned so far this walk: %7.2f kcal, %7.2f kcal net'
-                     % (sum(self.calorie_acc), sum(self.calorie_acc_net)))
+        if accs[0] or accs[1]:
+            self.poutput('Calories burned so far this walk: %7.2f kcal, %7.2f kcal net'
+                         % (sum(self.calorie_acc), sum(self.calorie_acc_net)))
 
     def compute_initial_cal(self, status: WalkingPadCurStatus):
         self.last_speed_change_rec = status  # default
@@ -388,6 +334,8 @@ class WalkingPadControl(Ph4Cmd):
 
         parser.add_argument('--debug', dest='debug', action='store_const', const=True,
                             help='enables debug mode')
+        parser.add_argument('--no-bt', dest='no_bt', action='store_const', const=True,
+                            help='Do not use Bluetooth, no belt interaction enabled')
         parser.add_argument('--info', dest='info', action='store_const', const=True,
                             help='enables info logging mode')
         parser.add_argument('-s', '--scan', dest='scan', action='store_const', const=True,
@@ -441,6 +389,7 @@ class WalkingPadControl(Ph4Cmd):
     def do_quit(self, line):
         """Terminate the shell"""
         self.stats_collecting = True
+        self.cmd_running = False
         print("Terminating, please wait...")
         return super().do_quit(line)
 

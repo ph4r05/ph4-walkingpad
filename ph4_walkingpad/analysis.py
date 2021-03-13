@@ -149,6 +149,7 @@ class StatsAnalysis:
         return calorie_acc, calorie_acc_net
 
     def load_last_stats(self):
-        for margins in self.parse_stats(1):
-            self.loaded_margins.append(margins)
-            return self.comp_calories(margins)
+        self.load_stats(1)
+        if self.loaded_margins:
+            logger.debug('Loaded margins: %s' % (json.dumps(self.loaded_margins[0], indent=2),))
+            return self.comp_calories(self.loaded_margins[0])
