@@ -255,9 +255,7 @@ class WalkingPadControl(Ph4Cmd):
         margins = []
         with open(self.args.json_file) as fh:
             reader = reverse_file(fh)
-
-            while True:
-                line = next(reader)
+            for line in reader:
                 if line is None:
                     return
                 if not line:
