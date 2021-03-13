@@ -15,7 +15,7 @@ def upload_record(tok, did, cal, timex, dur, distance, step, **kwargs):
 
 
 def get_records(tok, page=1, per_page=10000, timestamp=None, **kwargs):
-    url = 'https://eu.app.walkingpad.com/user/api/v2/record?page=%d&per_page=%d'
+    url = 'https://eu.app.walkingpad.com/user/api/v2/record?page=%d&per_page=%d' % (page, per_page)
     if timestamp:
         url += '&timestamp=%d' % timestamp
     cookies = {'user': tok}

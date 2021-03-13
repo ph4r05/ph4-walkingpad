@@ -53,13 +53,14 @@ def calories_walk2_minute(speed: float, weight: float, deg: float):
 
 
 class Profile:
-    def __init__(self, pid=None, male=True, age=0, weight=0, height=0, token=None):
+    def __init__(self, pid=None, male=True, age=0, weight=0, height=0, token=None, did=None):
         self.pid = pid
         self.male = male
         self.age = age
         self.weight = weight
         self.height = height
         self.token = token
+        self.did = did
 
     def load_from(self, js):
         self.pid = defval(js, 'id')
@@ -68,6 +69,7 @@ class Profile:
         self.weight = defval(js, 'weight')
         self.height = defval(js, 'height')
         self.token = defval(js, 'token')
+        self.did = defval(js, 'did')
 
     @staticmethod
     def from_data(data):

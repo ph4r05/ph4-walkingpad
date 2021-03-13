@@ -4,5 +4,6 @@
   "age": 25,
   "weight": 80,
   "height": 1.80,
+  "did": "ff:ff:ff:ff:ff:ff",
   "token": "JWT-token"
 }
