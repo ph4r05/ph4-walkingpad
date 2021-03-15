@@ -14,7 +14,7 @@ from collections import OrderedDict
 from typing import Optional
 
 import coloredlogs
-from aioconsole import ainput
+from aioconsole import ainput, get_standard_streams
 
 from ph4_walkingpad.cmd import Ph4Cmd
 from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
@@ -37,6 +37,7 @@ class WalkingPadControl(Ph4Cmd):
         self.profile = None
         self.analysis = None  # type: Optional[StatsAnalysis]
         self.loaded_margins = []
+        self.streams = None
 
         self.worker_thread = None
         self.stats_thread = None
@@ -284,14 +285,14 @@ class WalkingPadControl(Ph4Cmd):
         self.last_speed_change_rec = status  # default
 
         mgs = self.loaded_margins
-        if not mgs \
-                or status.time < mgs[0]['time'] \
-                or status.dist < mgs[0]['dist'] \
-                or status.rtime < mgs[0]['rec_time'] \
-                or status.steps < mgs[0]['steps']:
+        if not mgs or not mgs[0] or not mgs[0][0] \
+                or status.time < mgs[0][0]['time'] \
+                or status.dist < mgs[0][0]['dist'] \
+                or status.rtime < mgs[0][0]['rec_time'] \
+                or status.steps < mgs[0][0]['steps']:
             return
 
-        nmg = mgs[0]
+        nmg = mgs[0][0]
         time_to_rtime = abs((status.time - nmg['time']) - (status.rtime - nmg['rec_time']))
 
         # Last statistics from the file is probably too old, do not count it to the current walk.
@@ -301,10 +302,10 @@ class WalkingPadControl(Ph4Cmd):
         # Last speed change. Calories for block will be counted from this onward.
         self.last_speed_change_rec = WalkingPadCurStatus()
         self.last_speed_change_rec.speed = status.speed
-        self.last_speed_change_rec.dist = mgs[0]['dist']
-        self.last_speed_change_rec.time = mgs[0]['time']
-        self.last_speed_change_rec.rtime = mgs[0]['rec_time']
-        self.last_speed_change_rec.steps = mgs[0]['steps']
+        self.last_speed_change_rec.dist = nmg['dist']
+        self.last_speed_change_rec.time = nmg['time']
+        self.last_speed_change_rec.rtime = nmg['rec_time']
+        self.last_speed_change_rec.steps = nmg['steps']
         # if '_segment_time' in nmg:
         #     self.last_speed_change_rec.dist -= mgs[0]['_segment_dist']
         #     self.last_speed_change_rec.time -= mgs[0]['_segment_time']
@@ -443,6 +444,7 @@ class WalkingPadControl(Ph4Cmd):
 
     async def ask_prompt(self, prompt="", is_int=False):
         ret_val = None
+        self.switch_reader(False)
         self.remove_reader()
         try:
             while True:
@@ -456,17 +458,22 @@ class WalkingPadControl(Ph4Cmd):
         except Exception as e:
             logger.warning('Exception: %s' % (e,))
         finally:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0)
+            self.switch_reader(True)
             self.reset_reader()
         return ret_val
 
     async def ask_yn(self):
         ret_val = None
+        self.switch_reader(False)
         self.remove_reader()
+        if not self.streams:
+            self.streams = await get_standard_streams(use_stderr=False, loop=self.loop)
+
         try:
             while True:
                 await asyncio.sleep(0)
-                yn = await ainput("Do you confirm? (y/n): ", loop=self.loop)
+                yn = await ainput("Do you confirm? (y/n): ", loop=self.loop, streams=self.streams)
                 yn2 = yn.lower().strip()
                 if yn2 in ['y', 'n']:
                     ret_val = yn2 == 'y'
@@ -474,7 +481,9 @@ class WalkingPadControl(Ph4Cmd):
         except Exception as e:
             logger.warning('Exception: %s' % (e,))
         finally:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0)
+            self.remove_reader()
+            self.switch_reader(True)
             self.reset_reader()
         return ret_val
 
