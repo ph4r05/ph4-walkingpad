@@ -79,6 +79,7 @@ class StatsAnalysis:
             dist_diff = last_rec['dist'] - js['dist']
             rtime_diff = last_rec['rec_time'] - js['rec_time']
             time_to_rtime = abs(time_diff - rtime_diff)
+            js['_ldiff'] = [time_diff, steps_diff, dist_diff, rtime_diff, time_to_rtime]
 
             breaking = time_diff < 0 or steps_diff < 0 or dist_diff < 0 or rtime_diff < 0 or time_to_rtime > 5*60
             stats_changed = False
@@ -91,19 +92,19 @@ class StatsAnalysis:
                     mm = margins[-1]
                     mm['_breaking'] = breaking
 
-            if not breaking \
+            if (in_record or not breaking) \
                     and (last_rec_diff['speed'] != js['speed']
                     or (breaking and last_rec_diff['speed'] != 0)
                     or (js['speed'] == 0 and js['time'] == 0)):
 
                 js['_breaking'] = breaking
-                js['_ldiff'] = [time_diff, steps_diff, dist_diff, rtime_diff]
+                js_src = js if not breaking else last_rec
                 if margins:
                     mm = margins[-1]
-                    mm['_segment_time'] = last_rec_diff['time'] - js['time']
-                    mm['_segment_rtime'] = last_rec_diff['rec_time'] - js['rec_time']
-                    mm['_segment_dist'] = last_rec_diff['dist'] - js['dist']
-                    mm['_segment_steps'] = last_rec_diff['steps'] - js['steps']
+                    mm['_segment_time'] = last_rec_diff['time'] - js_src['time']
+                    mm['_segment_rtime'] = last_rec_diff['rec_time'] - js_src['rec_time']
+                    mm['_segment_dist'] = last_rec_diff['dist'] - js_src['dist']
+                    mm['_segment_steps'] = last_rec_diff['steps'] - js_src['steps']
                     if collect_details:
                         mm['_records'] = sub_records[:-1]
                         sub_records = [dict(js)]
@@ -164,8 +165,17 @@ class StatsAnalysis:
                     % (sum(calorie_acc), sum(calorie_acc_net)))
         return calorie_acc, calorie_acc_net
 
-    def load_last_stats(self):
-        self.load_stats(1)
+    def load_last_stats(self, count=1):
+        self.load_stats(count)
         if self.loaded_margins:
             logger.debug('Loaded margins: %s' % (json.dumps(self.loaded_margins[0], indent=2),))
             return self.comp_calories(self.loaded_margins[0])
+
+    def remove_records(self, margins):
+        ret = []
+        for recs in margins:
+            nrecs = [dict(x) for x in recs]
+            for rec in nrecs:
+                rec['_records'] = None
+            ret.append(nrecs)
+        return ret

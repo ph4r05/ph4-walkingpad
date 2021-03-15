@@ -1,4 +1,8 @@
 import requests
+import logging
+import json
+
+logger = logging.getLogger(__name__)
 
 
 def upload_record(tok, did, cal, timex, dur, distance, step, **kwargs):
@@ -11,6 +15,7 @@ def upload_record(tok, did, cal, timex, dur, distance, step, **kwargs):
     cookies = {'user': tok}
     js = {'did': did, 'cal': cal, 'time': timex, 'dur': dur, 'distance': distance, 'step': step,
           'sid': None, 'model': 'A1'}
+    logger.info('Upload record: %s' % (json.dumps(js, indent=2)),)
     return requests.post(url, json=js, cookies=cookies, **kwargs)
 
 

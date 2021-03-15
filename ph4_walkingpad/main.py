@@ -8,15 +8,19 @@ import json
 import logging
 import sys
 import threading
+import re
+import time
 from collections import OrderedDict
 from typing import Optional
 
 import coloredlogs
+from aioconsole import ainput
 
 from ph4_walkingpad.cmd import Ph4Cmd
 from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
 from ph4_walkingpad.profile import Profile, calories_walk2_minute, calories_rmrcb_minute
 from ph4_walkingpad.analysis import StatsAnalysis
+from ph4_walkingpad.upload import upload_record
 
 logger = logging.getLogger(__name__)
 coloredlogs.CHROOT_FILES = []
@@ -166,10 +170,10 @@ class WalkingPadControl(Ph4Cmd):
                 + "-" * self.get_term_width()
         )
 
-        if self.args.no_bt:
-            self.cmdloop()
-        else:
-            await self.acmdloop()
+        # if self.args.no_bt:
+        #     self.cmdloop()
+        # else:
+        await self.acmdloop()
 
     def on_status(self, sender, status: WalkingPadCurStatus):
         # Calories computation with respect to the last segment of the same speed.
@@ -266,7 +270,8 @@ class WalkingPadControl(Ph4Cmd):
             return
 
         self.analysis = StatsAnalysis(profile=self.profile, stats_file=self.args.json_file)
-        accs = self.analysis.load_last_stats()
+        accs = self.analysis.load_last_stats(5)
+        self.loaded_margins = self.analysis.loaded_margins
 
         self.calorie_acc = accs[0]
         self.calorie_acc_net = accs[1]
@@ -386,6 +391,93 @@ class WalkingPadControl(Ph4Cmd):
         self.asked_status = True
         await self.ctler.ask_stats()
 
+    async def upload_record(self, line):
+        if not self.profile or not self.profile.did or not self.profile.token:
+            self.poutput("Profile is not properly loaded (token, did)")
+            return
+
+        mt_int = re.match(r'^(\d+)$', line.strip())
+        cal_acc, timex, dur, dist, steps = 0, 0, 0, 0, 0
+        if mt_int:
+            idx = int(line)
+            mm = [x for x in self.loaded_margins[idx] if '_segment_dist' in x and x['_segment_dist'] > 0]
+            oldest = min(mm, key=lambda x: x['rec_time'])
+            newest = min(mm, key=lambda x: -x['rec_time'])
+
+            cal_acc = 0
+            for r in mm:
+                el_time = r['_segment_rtime']
+                ccal = (el_time / 60) * calories_walk2_minute(r['speed'] / 10., self.profile.weight, 0.00)
+                ccal_net = ccal - (el_time / 60) * calories_rmrcb_minute(self.profile.weight, self.profile.height,
+                                                                         self.profile.age, self.profile.male)
+                cal_acc += ccal_net
+            timex = int(oldest['rec_time'])
+            dur, dist, steps = newest['time'], newest['dist'], newest['steps']
+
+        else:
+            dist = int(await self.ask_prompt("Distance: "))
+            dur = int(await self.ask_prompt("Duration: "))
+            steps = int(await self.ask_prompt("Steps: "))
+            timex = int(await self.ask_prompt("Time: (0 for current)"))
+            cal_acc = int(await self.ask_prompt("Calories: "))
+            if timex == 0:
+                timex = int(time.time() - dur - 60)
+
+        if steps == 0:
+            self.poutput('No record to upload')
+            return
+
+        # cal, timex, dur, distance, step
+        self.poutput('Adding record: Duration=%5d, distance=%5d, steps=%5d, cal=%5d, time: %d'
+                     % (dur, dist, steps, cal_acc, timex))
+
+        res = await self.ask_yn()
+        if not res:
+            return
+
+        self.poutput('Uploading...')
+        r = upload_record(self.profile.token, self.profile.did,
+                          cal=int(cal_acc), timex=timex, dur=dur, distance=dist, step=steps)
+        r.raise_for_status()
+        self.poutput('Response: %s, data: %s' % (r, r.json()))
+
+    async def ask_prompt(self, prompt="", is_int=False):
+        ret_val = None
+        self.remove_reader()
+        try:
+            while True:
+                await asyncio.sleep(0)
+                ret_val = await ainput(prompt, loop=self.loop)
+                if not is_int:
+                    break
+                if is_int and re.match(r'^(\d+)$', ret_val):
+                    break
+
+        except Exception as e:
+            logger.warning('Exception: %s' % (e,))
+        finally:
+            await asyncio.sleep(0.2)
+            self.reset_reader()
+        return ret_val
+
+    async def ask_yn(self):
+        ret_val = None
+        self.remove_reader()
+        try:
+            while True:
+                await asyncio.sleep(0)
+                yn = await ainput("Do you confirm? (y/n): ", loop=self.loop)
+                yn2 = yn.lower().strip()
+                if yn2 in ['y', 'n']:
+                    ret_val = yn2 == 'y'
+                    break
+        except Exception as e:
+            logger.warning('Exception: %s' % (e,))
+        finally:
+            await asyncio.sleep(0.2)
+            self.reset_reader()
+        return ret_val
+
     def do_quit(self, line):
         """Terminate the shell"""
         self.stats_collecting = True
@@ -437,6 +529,20 @@ class WalkingPadControl(Ph4Cmd):
     def do_profile(self, line):
         """Prints currently loaded profile"""
         print(self.profile)
+
+    def do_upload(self, line):
+        """Uploads records to the app server"""
+        self.submit_coro(self.upload_record(line), loop=self.loop)
+
+    def do_margins(self, line):
+        target = int(line) if line else None
+        for i, m in enumerate(self.loaded_margins):
+            if target is not None and i != target:
+                continue
+            print('='*80, 'Margin %2d, records: %3d' % (i, len(m)))
+            print(json.dumps(self.analysis.remove_records([m])[0], indent=2))
+            print('- ' * 40, 'Margin %2d, records: %3d' % (i, len(m)))
+        print('Num margins: %s' % (len(self.loaded_margins),))
 
     do_q = do_quit
     do_Q = do_quit

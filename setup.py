@@ -13,9 +13,10 @@ install_requires = [
     'asyncio',
     'coloredlogs',
     'bleak',
-    'ph4-acmd2==0.0.1',
+    'ph4-acmd2==0.0.5',
     'blessed',
     'requests',
+    'aioconsole==0.3.1',
 ]
 
 dev_extras = [
@@ -73,6 +74,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ph4-walkingpad-ctl = ph4_walkingpad.main:main',
+            'ph4-cal = ph4_walkingpad.cal:main',
         ],
     }
 )
