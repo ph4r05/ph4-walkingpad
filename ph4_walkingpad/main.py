@@ -398,6 +398,9 @@ class WalkingPadControl(Ph4Cmd):
             return
 
         mt_int = re.match(r'^(\d+)$', line.strip())
+
+        # re_float = r'[+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)'
+        # mt_data = re.match(r'^(?:(%s)\s*m)\s+(?:(\d+)\s*s)\s+(?:(%s)\s*m)\s+(?:(%s)\s*m)\s+(?:(%s)\s*m)\s+$')
         cal_acc, timex, dur, dist, steps = 0, 0, 0, 0, 0
         if mt_int:
             idx = int(line)
@@ -414,6 +417,10 @@ class WalkingPadControl(Ph4Cmd):
                 cal_acc += ccal_net
             timex = int(oldest['rec_time'])
             dur, dist, steps = newest['time'], newest['dist'], newest['steps']
+
+        elif ',' in line:
+            p = [x.strip() for x in line.split(',')]
+            dist, dur, steps, timex, cal_acc = int(p[0]), int(p[1]), int(p[2]), int(p[3]), int(p[4])
 
         else:
             dist = int(await self.ask_prompt("Distance: "))
@@ -540,7 +547,7 @@ class WalkingPadControl(Ph4Cmd):
         print(self.profile)
 
     def do_upload(self, line):
-        """Uploads records to the app server"""
+        """Uploads records to the app server. One limit format: dist, dur, steps, timex, cal_acc"""
         self.submit_coro(self.upload_record(line), loop=self.loop)
 
     def do_margins(self, line):
