@@ -178,7 +178,15 @@ For those willing to spend time on this: [1](https://tinyhack.com/2021/03/07/rev
 
 Thanks for considering donation if you find this project useful:
 
-- Bitcoin: `1DBr1tfuqv6xphg5rzNTPxqiUbqbRHrM2E`
-- Monero: `87KDQUP7yVKd7inmX2WXuaQUBrxeGN9X9AuQwfaUkJ3KQXSRe6KbhnLRvWNK4mx2SeBwcFdHYgS71fzYFS5mtNf7Dn8SdpJ`
-- [PayPal link](https://www.paypal.com/donate?hosted_button_id=LC2LK4FGHSUCQ)
+#### Bitcoin
+```1DBr1tfuqv6xphg5rzNTPxqiUbqbRHrM2E```
+
+(No Lightning for now, hopefully soon)
+
+#### Monero
+  
+```87KDQUP7yVKd7inmX2WXuaQUBrxeGN9X9AuQwfaUkJ3KQXSRe6KbhnLRvWNK4mx2SeBwcFdHYgS71fzYFS5mtNf7Dn8SdpJ```
+  
+#### PayPal
+[PayPal link](https://www.paypal.com/donate?hosted_button_id=LC2LK4FGHSUCQ)
 
