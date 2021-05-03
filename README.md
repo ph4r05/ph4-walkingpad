@@ -157,13 +157,13 @@ This approach is not that straightforward as from logs as you cannot see belt re
 The Bluetooth log can be obtained from the device via `adb` and opened in Wireshark. 
 
 You may need to do own journal with times and commands you issued so you can experiment with the belt
-(e.g., change speeds) so the commands get logged to the Bluetooth log. Then after the experiment,
+(e.g., change speeds), the commands get logged to the Bluetooth log. Then after the experiment,
 download the Bluetooth log and map your log entries to the packets from the log. 
 
 This is substantially difficult compared to the easy way - message logs.
 
 #### Hard way - Flutter disassembly
-The original application is implemented in [Flutter](https://flutter.dev), so direct application reversing is quite a painful process. 
+The original application is implemented in [Flutter](https://flutter.dev), so direct application reversing is quite painful process. 
 Flutter compiles the source language (TypeScript I guess) to a binary form. It runs on top of a Flutter virtual machine, thus
 compiled binary has only one primary entry point, a dispatch function. Disassembly does not yield anything sensible,
 it requires special tools. Also, decompilation tools require the Flutter version to precisely match the version used to compile the application.
@@ -179,13 +179,17 @@ For those willing to spend time on this: [1](https://tinyhack.com/2021/03/07/rev
 Thanks for considering donation if you find this project useful:
 
 #### Bitcoin
-```1DBr1tfuqv6xphg5rzNTPxqiUbqbRHrM2E```
+```
+1DBr1tfuqv6xphg5rzNTPxqiUbqbRHrM2E
+```
 
 (No Lightning for now, hopefully soon)
 
 #### Monero
   
-```87KDQUP7yVKd7inmX2WXuaQUBrxeGN9X9AuQwfaUkJ3KQXSRe6KbhnLRvWNK4mx2SeBwcFdHYgS71fzYFS5mtNf7Dn8SdpJ```
+```
+87KDQUP7yVKd7inmX2WXuaQUBrxeGN9X9AuQwfaUkJ3KQXSRe6KbhnLRvWNK4mx2SeBwcFdHYgS71fzYFS5mtNf7Dn8SdpJ
+```
   
 #### PayPal
 [PayPal link](https://www.paypal.com/donate?hosted_button_id=LC2LK4FGHSUCQ)
