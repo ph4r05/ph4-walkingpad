@@ -1,6 +1,7 @@
 import requests
 import logging
 import json
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -25,3 +26,17 @@ def get_records(tok, page=1, per_page=10000, timestamp=None, **kwargs):
         url += '&timestamp=%d' % timestamp
     cookies = {'user': tok}
     return requests.get(url, cookies=cookies, **kwargs)
+
+
+def login(email, password, **kwargs):
+    """
+    Logs in to the walking pad service, returns tuple (jwt-token, response)
+    """
+    url = 'https://eu.app.walkingpad.com/user/api/v2/login'
+    js = {'email': email, 'password': hashlib.md5(password.encode('utf8')).hexdigest()}
+
+    r = requests.post(url, json=js, **kwargs)
+    r.raise_for_status()
+    return r.cookies.get_dict()['user'], r
+
+

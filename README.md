@@ -1,10 +1,12 @@
 # WalkingPad controller
 
-Simple python script that can control KingSmith WalkingPad A1.
-Communicates via [Bluetooth LE GATT](https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html).
+Simple python script that can control KingSmith WalkingPad A1. 
+[Others report](https://github.com/ph4r05/ph4-walkingpad/issues/1) the similar models, such as R1 PRO work on the same principle.
 
+The belt communicates via [Bluetooth LE GATT](https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html).
+Only one device can be connected to the belt at a time, i.e., if original app is connected, the controller won't be able to connect.
 
-## Features
+## Controller features
 
 - Switch mode: Standby / Manual / Automatic
 - Start belt, stop belt
@@ -124,6 +126,10 @@ Example:
 {"time": 557, "dist": 80, "steps": 982, "speed": 60, "app_speed": 180, "belt_state": 1, "controller_button": 0, "manual_mode": 1, "raw": "f8a2013c0100022d0000500003d6b4000000ecfd", "rec_time": 1615644985.606997, "pid": "ph4r05", "ccal": 23.741, "ccal_net": 18.933, "ccal_sum": 58.665, "ccal_net_sum": 45.961}
 ```
 
+The benefit of having detailed data is an option to analyze data from the whole run, e.g., how step size varies over the time during one session, collect preferred speeds, etc...
+
+Also, if the original app fails to fetch the final state from the Belt, having continuous data stream is helpful to avoid data loss.
+
 ### Reversing Belt API 
 
 #### Easy way - Android logs
@@ -182,6 +188,53 @@ I was using the WalkingPad app to reverse engineer packet formats:
 
 Other reported apps may be less obfuscated and easier to analyze (didn't test):
 - https://play.google.com/store/apps/details?id=com.kingsmith.xiaojin
+
+## Protocol basics
+
+Protocol internals are implemented in [pad.py](ph4_walkingpad/pad.py).
+
+- Belt communicates over BT LE GATT messages.
+- Controlling app sends a simple binary message to the belt for control and status fetch (request)
+- App sends periodically status requests (~ 750 ms), belt responds with a binary message containing:
+  current belt state, manual mode indicator, belt running time in seconds, distance in 10 meters (1km = 100 units), 
+  number of steps, last set speed, last button pressed on controller (calories are not reported by the belt)
+- Large numbers, such as distance, steps and time are encoded in 3 bytes in the following form: `[x0, x1, x2]`, where integer form is
+`x = x0*65536 + x1*256 + x0` (big endian on 3 bytes)
+- Packet contains a simple checksum. If the checksum is invalid, belt ignores the command. Let `cmd` be the whole received payload,
+checksum is computed as: `cmd[-2] = sum(cmd[1:-2]) % 256`. For more, check `WalkingPadCurStatus` 
+- Belt stores the last run status in memory. On query from the app the belt returns it in a different status message form, check `WalkingPadLastStatus`.
+  Another request from the app clears the last run status.
+- It seems that the belt stores the last run status only for a limited time and does not survive power cut, thus this might be the reason
+  why users are reporting apps are not fetching the statistics completely from the belt. Final stats are fetched after the belt is stopped, 
+  thus if app is not running when belt stops (e.g., auto stop, or by controller), app sometimes does not make the status fetch in time and the run status is lost.
+  
+Example of a status message `m`:
+
+```
+f8a2010f01000fd10000ab0012ae3c0000003afd
+```
+
+When logged by the application, it is printed out as array if bytes:
+
+```
+[248, 162, 1, 15, 1, 0, 15, 209, 0, 0, 171, 0, 18, 174, 60, 0, 0, 0, 58, 253]
+```
+
+- `[248, 162]` or `f8a2` is a fixed prefix, probably the message ID.
+- `m[2] == 1` is a belt state
+- `m[3] == 15` is a belt speed * 10, here 1.5 kmph
+- `m[4] == 1` is a flag signalizing manual mode (vs automatic = 0)
+- `m[5:8] == [0, 15, 209]` is encoded time in seconds, here 4049s = 67 min, 29s
+- `m[8:11] == [0, 0, 171]` is distance in 10 meters, here 171 = 1.71 km
+- `m[11:14] == [0, 18, 174]` is number of steps, here 4782
+- `m[14] == 60` is the last set app speed, 60 units, 6 kmph
+- `m[15]` unknown
+- `m[16]` last controller button pressed
+- `m[17] == 58` is the checksum
+- `m[18] == 253` is a fixed suffix
+
+Meaning of some fields are not known (15) or the value space was not explored. `m[15]` could be for example heart rate 
+for those models measuring it. 
 
 ### Donate
 
