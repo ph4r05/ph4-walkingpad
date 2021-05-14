@@ -148,7 +148,7 @@ adb logcat
 You then can see the app communication with the belt in real-time. When using the app, it logs also requests 
 so you can figure out how commands for e.g., speed change look like.
 
-### Medium - Bluetooth logs
+#### Medium - Bluetooth logs
 
 Should vendor remove the logging from the app and you are unable to find APK in archives with the logging, you can always 
 enable Bluetooth logs in the Phone development settings. 
@@ -173,6 +173,15 @@ For those willing to spend time on this: [1](https://tinyhack.com/2021/03/07/rev
 [3](https://rloura.wordpress.com/2020/12/04/reversing-flutter-for-android-wip/),
 [4](https://blog.tst.sh/reverse-engineering-flutter-apps-part-1/).
 
+#### Alternatives
+
+I was using the WalkingPad app to reverse engineer packet formats:
+
+- https://play.google.com/store/apps/details?id=com.walkingpad.app&hl=en&gl=US
+- https://m.apkpure.com/walkingpad/com.walkingpad.app
+
+Other reported apps may be less obfuscated and easier to analyze (didn't test):
+- https://play.google.com/store/apps/details?id=com.kingsmith.xiaojin
 
 ### Donate
 
