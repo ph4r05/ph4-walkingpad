@@ -6,9 +6,11 @@ import asyncio
 import binascii
 import json
 import logging
+import shutil
 import sys
 import threading
 import re
+import os
 import time
 from collections import OrderedDict
 from typing import Optional
@@ -20,7 +22,7 @@ from ph4_walkingpad.cmd import Ph4Cmd
 from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
 from ph4_walkingpad.profile import Profile, calories_walk2_minute, calories_rmrcb_minute
 from ph4_walkingpad.analysis import StatsAnalysis
-from ph4_walkingpad.upload import upload_record
+from ph4_walkingpad.upload import upload_record, login as svc_login
 
 logger = logging.getLogger(__name__)
 coloredlogs.CHROOT_FILES = []
@@ -264,6 +266,33 @@ class WalkingPadControl(Ph4Cmd):
         with open(self.args.profile, 'r') as fh:
             dt = json.load(fh)
             self.profile = Profile.from_data(dt)
+
+    def save_profile(self):
+        if not self.args.profile or not self.profile:
+            return
+
+        tmp_fname = self.args.profile + '.tmp'
+        bak_fname = self.args.profile + '.backup'
+        with open(tmp_fname, 'w+') as fh:
+            json.dump(self.profile.dump(), fh, indent=2)
+
+        if not os.path.exists(bak_fname):
+            shutil.copy(self.args.profile, bak_fname)
+        os.rename(tmp_fname, self.args.profile)
+
+    def login(self):
+        if not self.args.profile or not self.profile:
+            raise ValueError('Could not login, no profile')
+
+        res = svc_login(self.profile.email, self.profile.password)
+        tok = res[0]
+
+        if not tok:
+            raise ValueError('Could not login')
+
+        self.profile.token = tok
+        self.save_profile()
+        return res
 
     def load_stats(self):
         """Compute last unfinished walk from the stats file (segments of the same speed)"""
@@ -547,8 +576,17 @@ class WalkingPadControl(Ph4Cmd):
         print(self.profile)
 
     def do_upload(self, line):
-        """Uploads records to the app server. One limit format: dist, dur, steps, timex, cal_acc"""
+        """Uploads records to the app server. Format: dist, dur, steps, timex, cal_acc. Alternatively, use upload <margin_index>"""
         self.submit_coro(self.upload_record(line), loop=self.loop)
+
+    def do_login(self, line):
+        """Login to the walkingpad service, refreshes JWT token for record upload (logs of the application)"""
+        try:
+            self.poutput('Logging in...')
+            r = self.login()
+            self.poutput('Logged in. Response: %s' % (r,))
+        except Exception as e:
+            logger.error('Could not login: %s' % (e,), exc_info=e)
 
     def do_margins(self, line):
         target = int(line) if line else None

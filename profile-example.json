@@ -5,5 +5,7 @@
   "weight": 80,
   "height": 1.80,
   "did": "ff:ff:ff:ff:ff:ff",
-  "token": "JWT-token"
+  "token": "JWT-token",
+  "email": "your-email@email.com",
+  "password": "service-login-password"
 }

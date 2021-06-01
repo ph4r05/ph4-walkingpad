@@ -75,6 +75,20 @@ class Profile:
         self.email = defval(js, 'email')
         self.password = defval(js, 'password')
 
+    def dump(self):
+        js = {
+            'id': self.pid,
+            'male': self.male,
+            'age': self.age,
+            'weight': self.weight,
+            'height': self.height,
+            'token': self.token,
+            'did': self.did,
+            'email': self.email,
+            'password': self.password
+        }
+        return js
+
     @staticmethod
     def from_data(data):
         m = Profile()
