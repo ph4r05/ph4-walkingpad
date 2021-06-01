@@ -7,5 +7,6 @@
   "did": "ff:ff:ff:ff:ff:ff",
   "token": "JWT-token",
   "email": "your-email@email.com",
-  "password": "service-login-password"
+  "password": "service-login-password",
+  "password_md5": "or use md5 password hash"
 }

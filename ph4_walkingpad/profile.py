@@ -53,7 +53,8 @@ def calories_walk2_minute(speed: float, weight: float, deg: float):
 
 
 class Profile:
-    def __init__(self, pid=None, male=True, age=0, weight=0, height=0, token=None, did=None, email=None, password=None):
+    def __init__(self, pid=None, male=True, age=0, weight=0, height=0, token=None, did=None, email=None, password=None,
+                 password_md5=None):
         self.pid = pid
         self.male = male
         self.age = age
@@ -63,6 +64,7 @@ class Profile:
         self.did = did
         self.email = email
         self.password = password
+        self.password_md5 = password_md5
 
     def load_from(self, js):
         self.pid = defval(js, 'id')
@@ -74,6 +76,7 @@ class Profile:
         self.did = defval(js, 'did')
         self.email = defval(js, 'email')
         self.password = defval(js, 'password')
+        self.password_md5 = defval(js, 'password_md5')
 
     def dump(self):
         js = {
@@ -85,7 +88,8 @@ class Profile:
             'token': self.token,
             'did': self.did,
             'email': self.email,
-            'password': self.password
+            'password': self.password,
+            'password_md5': self.password_md5,
         }
         return js
 

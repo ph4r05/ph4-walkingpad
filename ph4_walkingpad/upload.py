@@ -28,12 +28,13 @@ def get_records(tok, page=1, per_page=10000, timestamp=None, **kwargs):
     return requests.get(url, cookies=cookies, **kwargs)
 
 
-def login(email, password, **kwargs):
+def login(email, password=None, password_md5=None, **kwargs):
     """
     Logs in to the walking pad service, returns tuple (jwt-token, response)
     """
     url = 'https://eu.app.walkingpad.com/user/api/v2/login'
-    js = {'email': email, 'password': hashlib.md5(password.encode('utf8')).hexdigest()}
+    password_md5 = password_md5 if password_md5 else hashlib.md5(password.encode('utf8')).hexdigest()
+    js = {'email': email, 'password': password_md5}
 
     r = requests.post(url, json=js, **kwargs)
     r.raise_for_status()

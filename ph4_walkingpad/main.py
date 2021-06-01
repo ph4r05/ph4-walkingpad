@@ -284,7 +284,7 @@ class WalkingPadControl(Ph4Cmd):
         if not self.args.profile or not self.profile:
             raise ValueError('Could not login, no profile')
 
-        res = svc_login(self.profile.email, self.profile.password)
+        res = svc_login(self.profile.email, password=self.profile.password, password_md5=self.profile.password_md5)
         tok = res[0]
 
         if not tok:
@@ -576,11 +576,13 @@ class WalkingPadControl(Ph4Cmd):
         print(self.profile)
 
     def do_upload(self, line):
-        """Uploads records to the app server. Format: dist, dur, steps, timex, cal_acc. Alternatively, use upload <margin_index>"""
+        """Uploads records to the app server. Format: dist, dur, steps, timex, cal_acc.
+        Alternatively, use upload <margin_index>"""
         self.submit_coro(self.upload_record(line), loop=self.loop)
 
     def do_login(self, line):
-        """Login to the walkingpad service, refreshes JWT token for record upload (logs of the application)"""
+        """Login to the walkingpad service, refreshes JWT token for record upload (logs of the application)
+        Preferably, use `adb logcat | grep 'user='` when logging in with the Android app to capture JWT"""
         try:
             self.poutput('Logging in...')
             r = self.login()
