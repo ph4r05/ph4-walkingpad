@@ -179,6 +179,24 @@ For those willing to spend time on this: [1](https://tinyhack.com/2021/03/07/rev
 [3](https://rloura.wordpress.com/2020/12/04/reversing-flutter-for-android-wip/),
 [4](https://blog.tst.sh/reverse-engineering-flutter-apps-part-1/).
 
+
+#### Hack way - BLE sniffer
+
+- Buy Nordic nRF52832 or nRF52870 USB dongle for BLE sniffing
+- Install plugin to Wireshark 
+  - https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE/Download#infotabs
+  - https://www.szrfstar.com/upload/file/1587092285.pdf
+- In Wireshark, go to View -> Interface Toolbars -> nRF Sniffer for Bluetooth LE
+- Let your WalkingPad advertise, then check it in the toolbar
+- Connect with the App to the WalkingPad
+- Analyze captured packet sequence
+
+Manual sniffer capture:
+
+```bash
+./nrf_sniffer_ble.sh --extcap-interface /dev/cu.usbserial-0001 --capture --fifo /tmp/fi 
+```
+
 #### Alternatives
 
 I was using the WalkingPad app to reverse engineer packet formats:
