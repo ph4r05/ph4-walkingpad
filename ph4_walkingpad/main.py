@@ -87,7 +87,7 @@ class WalkingPadControl(Ph4Cmd):
         self.worker_thread = threading.Thread(
             target=self.looper, args=(self.worker_loop,)
         )
-        self.worker_thread.setDaemon(True)
+        self.worker_thread.daemon = True
         self.worker_thread.start()
 
         address = await self.scan_address()
@@ -605,7 +605,11 @@ class WalkingPadControl(Ph4Cmd):
 
 
 def main():
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except:
+        loop = asyncio.new_event_loop()
+
     loop.set_debug(True)
     br = WalkingPadControl()
     loop.run_until_complete(br.main())

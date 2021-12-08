@@ -14,13 +14,13 @@ import asyncio
 import logging
 import sys
 
-import ph4acmd2
+from ph4acmd2 import Cmd as Cmd2
 from blessed import Terminal
 
 logger = logging.getLogger(__name__)
 
 
-class Ph4Cmd(ph4acmd2.Cmd):
+class Ph4Cmd(Cmd2):
     prompt = "$> "
 
     def __init__(self, *args, **kwargs):

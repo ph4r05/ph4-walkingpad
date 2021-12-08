@@ -6,6 +6,7 @@ import binascii
 import logging
 import time
 
+import bleak
 from bleak import discover
 from bleak import BleakClient
 
@@ -26,7 +27,14 @@ class Scanner:
 
     async def scan(self):
         logger.info("Scanning for peripherals...")
-        dev = await discover()
+        scanner_kwargs = {'filters': {"UUIDs": [
+            "0000180a-0000-1000-8000-00805f9b34fb",
+            "00010203-0405-0607-0809-0a0b0c0d1912",
+            "0000fe00-0000-1000-8000-00805f9b34fb",
+        ], "DuplicateData": False}}
+        scanner = bleak.BleakScanner()
+
+        dev = await scanner.discover(timeout=10.0)
         for i in range(len(dev)):
             # Print the devices discovered
             info_str = ', '.join(["[%2d]" % i, str(dev[i].address), str(dev[i].name), str(dev[i].metadata["uuids"])])
@@ -246,7 +254,8 @@ class Controller:
             raise ValueError('No address given to connect to')
 
         self.client = BleakClient(address)
-        return await self.client.connect()
+        logger.info("Connecting")
+        return await self.client.connect(timeout=10.0)
 
     async def send_cmd(self, cmd):
         self.fix_crc(cmd)
