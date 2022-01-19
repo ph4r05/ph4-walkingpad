@@ -5,6 +5,7 @@ import asyncio
 import binascii
 import logging
 import time
+import platform
 
 import bleak
 from bleak import discover
@@ -19,22 +20,39 @@ logger = logging.getLogger(__name__)
 
 
 class Scanner:
+    UUIDS = [
+        "0000180a-0000-1000-8000-00805f9b34fb",
+        "00010203-0405-0607-0809-0a0b0c0d1912",
+        "0000fe00-0000-1000-8000-00805f9b34fb",
+    ]
+
+    BLEAK_KWARGS = {
+        "service_uuids": UUIDS
+    }
+
     def __init__(self):
         self.devices_dict = {}
         self.devices_list = []
         self.receive_data = []
         self.walking_belt_candidates = []  # type: list[BLEDevice]
 
-    async def scan(self):
-        logger.info("Scanning for peripherals...")
-        scanner_kwargs = {'filters': {"UUIDs": [
-            "0000180a-0000-1000-8000-00805f9b34fb",
-            "00010203-0405-0607-0809-0a0b0c0d1912",
-            "0000fe00-0000-1000-8000-00805f9b34fb",
-        ], "DuplicateData": False}}
-        scanner = bleak.BleakScanner()
+    @staticmethod
+    def is_darwin():
+        try:
+            return platform.system().lower() == 'darwin'
+        except:
+            return False
 
-        dev = await scanner.discover(timeout=10.0)
+    @staticmethod
+    def get_bleak_kwargs():
+        return Scanner.BLEAK_KWARGS if Scanner.is_darwin() else {}
+
+    async def scan(self, timeout=3.0):
+        kwargs = Scanner.get_bleak_kwargs()
+        logger.info("Scanning for peripherals...")
+        logger.debug("Scanning kwargs: %s" % (kwargs,))
+        scanner = bleak.BleakScanner(**kwargs)
+        dev = await scanner.discover(timeout=timeout, **kwargs)
         for i in range(len(dev)):
             # Print the devices discovered
             info_str = ', '.join(["[%2d]" % i, str(dev[i].address), str(dev[i].name), str(dev[i].metadata["uuids"])])
@@ -253,9 +271,10 @@ class Controller:
         if not address:
             raise ValueError('No address given to connect to')
 
-        self.client = BleakClient(address)
-        logger.info("Connecting")
-        return await self.client.connect(timeout=10.0)
+        logger.info("Connecting to %s" % (address,))
+        kwargs = Scanner.get_bleak_kwargs()
+        self.client = BleakClient(address, **kwargs)
+        return await self.client.connect(timeout=10.0, **kwargs)
 
     async def send_cmd(self, cmd):
         self.fix_crc(cmd)
@@ -338,7 +357,7 @@ class Controller:
         await self.connect(address)
         client = self.client
 
-        x = await client.is_connected()
+        x = client.is_connected
         logger.info("Connected: {0}".format(x))
 
         self.char_fe01 = None

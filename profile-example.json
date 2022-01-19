@@ -6,7 +6,7 @@
   "height": 1.80,
   "did": "ff:ff:ff:ff:ff:ff",
   "token": "JWT-token",
-  "email": "your-email@email.com",
+  "email": "your-account@email.com",
   "password": "service-login-password",
-  "password_md5": "or use md5 password hash"
+  "password_md5": "or md5hash of password, hexcoded, to avoid plaintext password in config"
 }

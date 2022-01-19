@@ -57,9 +57,6 @@ class WalkingPadControl(Ph4Cmd):
         self.calorie_acc = []
         self.calorie_acc_net = []
 
-    def __del__(self):
-        self.submit_coro(self.disconnect())
-
     async def disconnect(self):
         logger.debug("Disconnecting coroutine")
         if self.ctler:
@@ -125,23 +122,34 @@ class WalkingPadControl(Ph4Cmd):
             return
 
         address = self.args.address
+        if address and Scanner.is_darwin():
+            logger.warning('Specifying address does not work on OSX 12+. '
+                           'If connection cannot be made, omit -a parameter')
+
+        if address:
+            return address
+
         if not address or self.args.scan:
             scanner = Scanner()
-            await scanner.scan()
+            await scanner.scan(timeout=self.args.scan_timeout)
 
             if scanner.walking_belt_candidates:
-                logger.info("WalkingPad candidates: %s" % (scanner.walking_belt_candidates,))
+                candidates = scanner.walking_belt_candidates
+                logger.info("WalkingPad candidates: %s" % (candidates,))
                 if self.args.scan:
-                    return
-                address = scanner.walking_belt_candidates[0].address
-        return address
+                    return None
+
+                if self.args.address_filter:
+                    candidates = [x for x in candidates if str(x.address).startswith(self.args.address_filter)]
+                return candidates[0] if candidates else None
+        return None
 
     def init_stats_fetcher(self):
         self.stats_loop = asyncio.new_event_loop()
         self.stats_thread = threading.Thread(
             target=self.looper, args=(self.stats_loop,)
         )
-        self.stats_thread.setDaemon(True)
+        self.stats_thread.daemon = True
         self.stats_thread.start()
 
     def start_stats_fetching(self):
@@ -362,12 +370,18 @@ class WalkingPadControl(Ph4Cmd):
         except Exception as e:
             logger.debug("Stats loading failed: %s" % (e,))
 
-        await self.work()
+        print(os.environ)
+        try:
+            await self.work()
+        except Exception as e:
+            logger.error('Exception in the main entry point: %s' % (e,), exc_info=e)
+        finally:
+            await self.disconnect()
 
     def argparser(self):
         parser = argparse.ArgumentParser(description='ph4 WalkingPad controller')
 
-        parser.add_argument('--debug', dest='debug', action='store_const', const=True,
+        parser.add_argument('-d', '--debug', dest='debug', action='store_const', const=True,
                             help='enables debug mode')
         parser.add_argument('--no-bt', dest='no_bt', action='store_const', const=True,
                             help='Do not use Bluetooth, no belt interaction enabled')
@@ -384,7 +398,11 @@ class WalkingPadControl(Ph4Cmd):
         parser.add_argument('-p', '--profile', dest='profile',
                             help='Profile JSON file')
         parser.add_argument('-a', '--address', dest='address',
-                            help='Walking pad address (if none, scanner is used)')
+                            help='Walking pad address (if none, scanner is used). OSX 12 have to scan first, do not use')
+        parser.add_argument('--filter', dest='address_filter',
+                            help='Walking pad address filter, if scanning and multiple devices are found')
+        parser.add_argument('--scan-timeout', dest='scan_timeout', type=float, default=3.0,
+                            help='Scan timeout in seconds, double')
         return parser
 
     async def stop_belt(self, to_standby=False):
@@ -613,6 +631,9 @@ def main():
     loop.set_debug(True)
     br = WalkingPadControl()
     loop.run_until_complete(br.main())
+
+    # Alternatively
+    # asyncio.run(br.main())
 
 
 if __name__ == '__main__':

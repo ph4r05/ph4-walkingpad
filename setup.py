@@ -12,7 +12,7 @@ install_requires = [
     'future',
     'asyncio',
     'coloredlogs',
-    'bleak',
+    'bleak>=0.14.1',
     'ph4-acmd2==0.0.5',
     'blessed',
     'requests',

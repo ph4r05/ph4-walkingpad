@@ -48,7 +48,14 @@ Controller enables to control the belt via CLI shell.
 
 Start controller: 
 ```bash
+# Note: use module notation to run the script, no direct script invocation.
 python -m ph4_walkingpad.main --stats 750 --json-file ~/walking.json
+```
+
+Or alternatively, if package was installed with pip:
+
+```bash
+ph4-walkingpad-ctl --stats 750 --json-file ~/walking.json
 ```
 
 The command asks for periodic statistics fetching at 750 ms, storing records to `~/walking.json`.
@@ -89,6 +96,21 @@ Due to nature of the BluetoothLE callbacks being executed on the main thread we 
 so the shell CLI does not support auto-complete, ctrl-r, up-arrow for the last command, etc.
 Readline does not have async support at the moment. 
 
+### OSX Troubleshooting
+
+This project uses [Bleak Bluetooth library](https://github.com/hbldh/bleak). 
+It was reported that OSX 12+ changed Bluetooth scanning logic, so it is not possible to connect to a device without scanning Bluetooth first.
+Moreover, it blocks for the whole timeout interval.
+
+Thus when using on OSX 12+:
+- do not use `-a` parameter
+- if there are more WalkingPads scanned, use `--filter` and specify device address prefix
+- to modify scanning timeout value use `--scan-timeout`
+
+Minimal required version of Bleak is 0.14.1
+
+Related resources: https://github.com/hbldh/bleak/issues/635, https://github.com/hbldh/bleak/pull/692
+
 ### Profile
 
 If the `-p profile.json` argument is passed, profile of the person is loaded from the file, so the controller can count burned calories.
@@ -101,9 +123,19 @@ Units are in a metric system.
   "age": 25,
   "weight": 80,
   "height": 1.80,
-  "token": "JWT-token"
+  "token": "JWT-token", 
+  "did": "ff:ff:ff:ff:ff:ff",
+  "email": "your-account@gmail.com",
+  "password": "service-login-password",
+  "password_md5": "or md5hash of password, hexcoded, to avoid plaintext password in config"
 }
 ```
+
+- `did` is optional field, associates your records with pad MAC address when uploading to the service
+- `email` and (`password` or `password_md5`) are optional. If filled, you can call `login` to generate a fresh JWT usable for service auth.
+
+Note that once you use `login` command, other JWTs become invalid, e.g., on your phone. 
+If you want to use the service on both devices, login with mobile phone while logging output with `adb` and capture JWT from logs (works only for Android phones).
 
 ### Stats file
 
@@ -253,6 +285,9 @@ When logged by the application, it is printed out as array if bytes:
 
 Meaning of some fields are not known (15) or the value space was not explored. `m[15]` could be for example heart rate 
 for those models measuring it. 
+
+#### Related work
+Another reverse engineer of the protocol (under GPL, [tldr](https://tldrlegal.com/license/gnu-general-public-license-v3-(gpl-3))): https://github.com/DorianRudolph/QWalkingPad/blob/master/Protocol.h
 
 ### Donate
 
