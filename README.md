@@ -46,6 +46,11 @@ The main controller class is `Controller` in [pad.py](ph4_walkingpad/pad.py)
 
 Controller enables to control the belt via CLI shell.
 
+Install the library:
+```bash
+pip install -U ph4-walkingpad
+```
+
 Start controller: 
 ```bash
 # Note: use module notation to run the script, no direct script invocation.
