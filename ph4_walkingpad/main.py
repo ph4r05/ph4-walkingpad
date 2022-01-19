@@ -370,7 +370,6 @@ class WalkingPadControl(Ph4Cmd):
         except Exception as e:
             logger.debug("Stats loading failed: %s" % (e,))
 
-        print(os.environ)
         try:
             await self.work()
         except Exception as e:

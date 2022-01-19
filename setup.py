@@ -34,7 +34,7 @@ docs_extras = [
 
 try:
     import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
+    long_description = pypandoc.convert_file('README.md', 'rst')
     long_description = long_description.replace("\r", '')
 
 except(IOError, ImportError):
