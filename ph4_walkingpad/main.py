@@ -18,7 +18,7 @@ from typing import Optional
 import coloredlogs
 from aioconsole import ainput, get_standard_streams
 
-from ph4_walkingpad.cmd import Ph4Cmd
+from ph4_walkingpad.cmd_helper import Ph4Cmd
 from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
 from ph4_walkingpad.profile import Profile, calories_walk2_minute, calories_rmrcb_minute
 from ph4_walkingpad.analysis import StatsAnalysis
