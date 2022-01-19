@@ -102,12 +102,15 @@ This project uses [Bleak Bluetooth library](https://github.com/hbldh/bleak).
 It was reported that OSX 12+ changed Bluetooth scanning logic, so it is not possible to connect to a device without scanning Bluetooth first.
 Moreover, it blocks for the whole timeout interval.
 
-Thus when using on OSX 12+:
+Thus, when using on OSX 12+:
 - do not use `-a` parameter
 - if there are more WalkingPads scanned, use `--filter` and specify device address prefix
 - to modify scanning timeout value use `--scan-timeout`
 
 Minimal required version of Bleak is 0.14.1
+
+If the process is still crashing, it may be it does not have permissions to access Bluetooth.
+To fix it, add your Terminal app (in my case iTerm2.app) to System Preferences -> Security & Privacy -> Bluetooth.
 
 Related resources: https://github.com/hbldh/bleak/issues/635, https://github.com/hbldh/bleak/pull/692
 
@@ -286,7 +289,7 @@ When logged by the application, it is printed out as array if bytes:
 Meaning of some fields are not known (15) or the value space was not explored. `m[15]` could be for example heart rate 
 for those models measuring it. 
 
-#### Related work
+### Related work
 Another reverse engineer of the protocol (under GPL, [tldr](https://tldrlegal.com/license/gnu-general-public-license-v3-(gpl-3))): https://github.com/DorianRudolph/QWalkingPad/blob/master/Protocol.h
 
 ### Donate
