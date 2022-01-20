@@ -263,6 +263,8 @@ class Controller:
         return WalkingPad.fix_crc(cmd)
 
     async def disconnect(self):
+        if not self.client:
+            return
         logger.info("Disconnecting")
         await self.client.disconnect()
 
