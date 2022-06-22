@@ -63,7 +63,7 @@ class Scanner:
     def get_bleak_kwargs():
         return Scanner.BLEAK_KWARGS if Scanner.is_darwin() else {}
 
-    async def scan(self, timeout=3.0, customname='walkingpad'):
+    async def scan(self, timeout=3.0, dev_name='walkingpad', matcher=None):
         kwargs = Scanner.get_bleak_kwargs()
         logger.info("Scanning for peripherals...")
         logger.debug("Scanning kwargs: %s" % (kwargs,))
@@ -80,7 +80,10 @@ class Scanner:
             self.devices_dict[dev[i].address].append(dev[i].metadata["uuids"])
             self.devices_list.append(dev[i].address)
 
-            if customname in dev[i].name.lower():
+            if dev_name and dev_name in dev[i].name.lower():
+                self.walking_belt_candidates.append(dev[i])
+
+            elif matcher and matcher(dev[i].name):
                 self.walking_belt_candidates.append(dev[i])
 
         if not dev:
