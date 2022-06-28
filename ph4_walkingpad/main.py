@@ -68,6 +68,7 @@ class WalkingPadControl(Ph4Cmd):
 
         self.ctler = Controller(address=address, do_read_chars=False)
         self.ctler.log_messages_info = self.args.cmd
+        self.ctler.ignore_bad_packets = self.args.ignore_bad_packets
         self.ctler.handler_cur_status = self.on_status
         self.ctler.handler_last_status = self.on_last_record
 
@@ -390,6 +391,8 @@ class WalkingPadControl(Ph4Cmd):
                             help='Scan all BLE and exit')
         parser.add_argument('--cmd', dest='cmd', action='store_const', const=True,
                             help='Non-interactive mode')
+        parser.add_argument('--ignore-bad-packets', dest='ignore_bad_packets', action='store_const', const=True,
+                            help='Ignore bad packets warnings')
         parser.add_argument('--stats', dest='stats', type=int, default=None,
                             help='Enable periodic stats collecting, interval in ms')
         parser.add_argument('-j', '--json-file', dest='json_file',

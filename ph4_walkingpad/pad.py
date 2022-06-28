@@ -224,6 +224,7 @@ class Controller:
         self.address = address
         self.do_read_chars = do_read_chars
         self.log_messages_info = True
+        self.ignore_bad_packets = False
 
         self.char_fe01 = None
         self.char_fe02 = None
@@ -247,30 +248,36 @@ class Controller:
 
     def notif_handler(self, sender, data):
         logger_fnc = logger.info if self.log_messages_info else logger.debug
-        logger_fnc('Msg: %s' % (', '.join('{:02x}'.format(x) for x in data)))
+        msg_hex = ', '.join('{:02x}'.format(x) for x in data)
+        logger_fnc('Msg: %s' % msg_hex)
         already_notified = False
 
-        if WalkingPadCurStatus.check_type(data):
-            m = WalkingPadCurStatus.from_data(data)
-            self.last_status = m
-            already_notified = True
-            self.on_cur_status_received(sender, m)
-            if self.handler_cur_status:
-                self.handler_cur_status(sender, m)
-            logger_fnc('Status: %s' % (m,))
+        try:
+            if WalkingPadCurStatus.check_type(data):
+                m = WalkingPadCurStatus.from_data(data)
+                self.last_status = m
+                already_notified = True
+                self.on_cur_status_received(sender, m)
+                if self.handler_cur_status:
+                    self.handler_cur_status(sender, m)
+                logger_fnc('Status: %s' % (m,))
 
-        elif WalkingPadLastStatus.check_type(data):
-            m = WalkingPadLastStatus.from_data(data)
-            self.last_record = None
-            already_notified = True
-            self.on_last_status_received(sender, m)
-            if self.handler_last_status:
-                self.handler_last_status(sender, m)
-            logger_fnc('Record: %s' % (m,))
+            elif WalkingPadLastStatus.check_type(data):
+                m = WalkingPadLastStatus.from_data(data)
+                self.last_record = None
+                already_notified = True
+                self.on_last_status_received(sender, m)
+                if self.handler_last_status:
+                    self.handler_last_status(sender, m)
+                logger_fnc('Record: %s' % (m,))
 
-        self.on_message_received(sender, data, already_notified)
-        if self.handler_message:
-            self.handler_message(sender, data, already_notified)
+            self.on_message_received(sender, data, already_notified)
+            if self.handler_message:
+                self.handler_message(sender, data, already_notified)
+
+        except Exception as e:
+            log_fnc = logger.debug if self.ignore_bad_packets else logger.error
+            log_fnc("Exception in processing msg [%s]: %s" % (msg_hex, e), exc_info=e)
 
     def on_message_received(self, sender, data, already_notified=False):
         """Override to use as message callback"""
