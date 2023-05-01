@@ -297,6 +297,12 @@ for those models measuring it.
 ### Related work
 Another reverse engineer of the protocol (under GPL, [tldr](https://tldrlegal.com/license/gnu-general-public-license-v3-(gpl-3))): https://github.com/DorianRudolph/QWalkingPad/blob/master/Protocol.h
 
+### Thanks
+Thanks to all contributors and to the community. 
+
+This project was awarded by the [
+Google Open Source Peer Bonus](https://opensource.googleblog.com/2022/03/Announcing-First-Group-of-Google-Open-Source-Peer-Bonus-Winners-in-2022.html) in Feb 2022.
+
 ### Donate
 
 Thanks for considering donation if you find this project useful:
