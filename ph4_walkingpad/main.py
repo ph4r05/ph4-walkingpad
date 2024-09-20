@@ -6,23 +6,30 @@ import asyncio
 import binascii
 import json
 import logging
+import os
+import re
 import shutil
 import sys
 import threading
-import re
-import os
 import time
 from collections import OrderedDict
-from typing import Optional
+from typing import Optional, Union
 
 import coloredlogs
 from aioconsole import ainput, get_standard_streams
 
-from ph4_walkingpad.cmd_helper import Ph4Cmd
-from ph4_walkingpad.pad import Scanner, WalkingPad, WalkingPadCurStatus, WalkingPadLastStatus, Controller
-from ph4_walkingpad.profile import Profile, calories_walk2_minute, calories_rmrcb_minute
 from ph4_walkingpad.analysis import StatsAnalysis
-from ph4_walkingpad.upload import upload_record, login as svc_login
+from ph4_walkingpad.cmd_helper import Ph4Cmd
+from ph4_walkingpad.pad import (
+    Controller,
+    Scanner,
+    WalkingPad,
+    WalkingPadCurStatus,
+    WalkingPadLastStatus,
+)
+from ph4_walkingpad.profile import Profile, calories_rmrcb_minute, calories_walk2_minute
+from ph4_walkingpad.upload import login as svc_login
+from ph4_walkingpad.upload import upload_record
 
 logger = logging.getLogger(__name__)
 coloredlogs.CHROOT_FILES = []
@@ -50,7 +57,7 @@ class WalkingPadControl(Ph4Cmd):
         self.asked_status_beep = False
 
         self.last_speed = 0
-        self.last_speed_change_rec = None  # type: Optional[WalkingPadCurStatus]
+        self.last_speed_change_rec: Optional[WalkingPadCurStatus] = None
         self.last_time_steps = (0, 0)
         self.cur_cal = 0
         self.cur_cal_net = 0
@@ -82,9 +89,7 @@ class WalkingPadControl(Ph4Cmd):
 
     async def work(self):
         self.worker_loop = asyncio.new_event_loop()
-        self.worker_thread = threading.Thread(
-            target=self.looper, args=(self.worker_loop,)
-        )
+        self.worker_thread = threading.Thread(target=self.looper, args=(self.worker_loop,))
         self.worker_thread.daemon = True
         self.worker_thread.start()
 
@@ -108,14 +113,14 @@ class WalkingPadControl(Ph4Cmd):
             try:
                 while self.cmd_running:
                     await asyncio.sleep(1)
-            except KeyboardInterrupt as e:
+            except KeyboardInterrupt:
                 print("Terminating")
 
         self.stats_collecting = False
         if not self.args.no_bt:
             await asyncio.sleep(1)
 
-        logger.info('Terminating')
+        logger.info("Terminating")
         return res
 
     async def scan_address(self):
@@ -124,8 +129,9 @@ class WalkingPadControl(Ph4Cmd):
 
         address = self.args.address
         if address and Scanner.is_darwin():
-            logger.warning('Specifying address does not work on OSX 12+. '
-                           'If connection cannot be made, omit -a parameter')
+            logger.warning(
+                "Specifying address does not work on OSX 12+. " "If connection cannot be made, omit -a parameter"
+            )
 
         if address:
             return address
@@ -147,9 +153,7 @@ class WalkingPadControl(Ph4Cmd):
 
     def init_stats_fetcher(self):
         self.stats_loop = asyncio.new_event_loop()
-        self.stats_thread = threading.Thread(
-            target=self.looper, args=(self.stats_loop,)
-        )
+        self.stats_thread = threading.Thread(target=self.looper, args=(self.stats_loop,))
         self.stats_thread.daemon = True
         self.stats_thread.start()
 
@@ -169,17 +173,19 @@ class WalkingPadControl(Ph4Cmd):
             try:
                 # await asyncio.wait_for(self.ctler.ask_stats(), None, loop=self.worker_loop)
                 await self.ctler.ask_stats()
-                await asyncio.sleep(max(500, self.args.stats or 0)/1000.0)
+                await asyncio.sleep(max(500, self.args.stats or 0) / 1000.0)
             except Exception as e:
                 logger.info("Error in ask stats: %s" % (e,))
 
     async def entry(self):
         aux = " (bluetooth disabled)" if self.args.no_bt else ""
         self.intro = (
-                "-" * self.get_term_width()
-                + "\n    WalkingPad controller" + aux + "\n"
-                + "\n"
-                + "-" * self.get_term_width()
+            "-" * self.get_term_width()
+            + "\n    WalkingPad controller"
+            + aux
+            + "\n"
+            + "\n"
+            + "-" * self.get_term_width()
         )
 
         # if self.args.no_bt:
@@ -190,9 +196,8 @@ class WalkingPadControl(Ph4Cmd):
     def on_status(self, sender, status: WalkingPadCurStatus):
         # Calories computation with respect to the last segment of the same speed.
         # TODO: refactor to analysis file
-        if self.last_time_steps[0] > status.time \
-                or self.last_time_steps[1] > status.steps:
-            logger.debug('Resetting calorie measurements')
+        if self.last_time_steps[0] > status.time or self.last_time_steps[1] > status.steps:
+            logger.debug("Resetting calorie measurements")
             self.last_time_steps = (status.time, status.steps)
             self.last_speed_change_rec = None
             self.last_speed = 0
@@ -204,15 +209,23 @@ class WalkingPadControl(Ph4Cmd):
             self.compute_initial_cal(status)
 
         el_time, el_dist = 0, 0
-        if self.profile:
+        if self.profile and self.last_speed_change_rec is not None:
             el_time = status.time - self.last_speed_change_rec.time
             el_dist = status.dist - self.last_speed_change_rec.dist
 
         ccal, ccal_net, ccal_sum, ccal_net_sum = None, None, None, None
         if el_time > 0 and el_dist > 0:
-            ccal = (el_time/60) * calories_walk2_minute(self.last_speed_change_rec.speed/10., self.profile.weight, 0.00)
-            ccal_net = ccal - (el_time/60) * calories_rmrcb_minute(self.profile.weight, self.profile.height,
-                                                                   self.profile.age, self.profile.male)
+            ccal = (
+                (
+                    (el_time / 60)
+                    * calories_walk2_minute(self.last_speed_change_rec.speed / 10.0, self.profile.weight, 0.00)
+                )
+                if self.last_speed_change_rec is not None
+                else 0
+            )
+            ccal_net = ccal - (el_time / 60) * calories_rmrcb_minute(
+                self.profile.weight, self.profile.height, self.profile.age, self.profile.male
+            )
             ccal_sum = sum(self.calorie_acc) + ccal
             ccal_net_sum = sum(self.calorie_acc_net) + ccal_net
             self.cur_cal = ccal
@@ -220,7 +233,7 @@ class WalkingPadControl(Ph4Cmd):
 
         # on speed change accumulate calories and move to a new speed
         # with a new status.
-        if self.last_speed_change_rec.speed != status.speed:
+        if self.last_speed_change_rec is not None and self.last_speed_change_rec.speed != status.speed:
             if self.cur_cal:
                 self.calorie_acc.append(self.cur_cal)
             if self.cur_cal_net:
@@ -230,10 +243,14 @@ class WalkingPadControl(Ph4Cmd):
             self.cur_cal_net = 0
             self.last_speed_change_rec = status
 
-        ccal_str = ''
-        if ccal:
-            ccal_str = ', cal: %6.2f, net: %6.2f, total: %6.2f, total net: %6.2f' \
-                       % (ccal, ccal_net, ccal_sum, ccal_net_sum)
+        ccal_str = ""
+        if ccal is not None:
+            ccal_str = ", cal: %6.2f, net: %6.2f, total: %6.2f, total net: %6.2f" % (
+                float(ccal),
+                float(ccal_net) if ccal_net is not None else 0,
+                float(ccal_sum) if ccal_sum is not None else 0,
+                float(ccal_net_sum) if ccal_net_sum is not None else 0,
+            )
 
         if self.asked_status:
             self.asked_status = False
@@ -246,7 +263,7 @@ class WalkingPadControl(Ph4Cmd):
         if not self.args.json_file:
             return
 
-        js = OrderedDict()
+        js: OrderedDict[str, Union[str, int, float, None]] = OrderedDict()
         js["time"] = status.time
         js["dist"] = status.dist
         js["steps"] = status.steps
@@ -255,14 +272,16 @@ class WalkingPadControl(Ph4Cmd):
         js["belt_state"] = status.belt_state
         js["controller_button"] = status.controller_button
         js["manual_mode"] = status.manual_mode
-        js["raw"] = binascii.hexlify(status.raw).decode('utf8')
-        js["rec_time"] = status.rtime
+        js["raw"] = (
+            (binascii.hexlify(status.raw).decode("utf8")) if status is not None and status.raw is not None else None
+        )
+        js["rec_time"] = status.rtime if status is not None else None
         js["pid"] = self.profile.pid if self.profile else None
-        js["ccal"] = round(ccal*1000)/1000 if ccal else None
-        js["ccal_net"] = round(ccal_net*1000)/1000 if ccal_net else None
-        js["ccal_sum"] = round(ccal_sum*1000)/1000 if ccal_sum else None
-        js["ccal_net_sum"] = round(ccal_net_sum*1000)/1000 if ccal_net_sum else None
-        with open(self.args.json_file, 'a+') as fh:
+        js["ccal"] = round(ccal * 1000) / 1000 if ccal else None
+        js["ccal_net"] = round(ccal_net * 1000) / 1000 if ccal_net else None
+        js["ccal_sum"] = round(ccal_sum * 1000) / 1000 if ccal_sum else None
+        js["ccal_net_sum"] = round(ccal_net_sum * 1000) / 1000 if ccal_net_sum else None
+        with open(self.args.json_file, "a+") as fh:
             json.dump(js, fh)
             fh.write("\n")
 
@@ -272,7 +291,7 @@ class WalkingPadControl(Ph4Cmd):
     def load_profile(self):
         if not self.args.profile:
             return
-        with open(self.args.profile, 'r') as fh:
+        with open(self.args.profile, "r") as fh:
             dt = json.load(fh)
             self.profile = Profile.from_data(dt)
 
@@ -280,9 +299,9 @@ class WalkingPadControl(Ph4Cmd):
         if not self.args.profile or not self.profile:
             return
 
-        tmp_fname = self.args.profile + '.tmp'
-        bak_fname = self.args.profile + '.backup'
-        with open(tmp_fname, 'w+') as fh:
+        tmp_fname = self.args.profile + ".tmp"
+        bak_fname = self.args.profile + ".backup"
+        with open(tmp_fname, "w+") as fh:
             json.dump(self.profile.dump(), fh, indent=2)
 
         if not os.path.exists(bak_fname):
@@ -291,13 +310,13 @@ class WalkingPadControl(Ph4Cmd):
 
     def login(self):
         if not self.args.profile or not self.profile:
-            raise ValueError('Could not login, no profile')
+            raise ValueError("Could not login, no profile")
 
         res = svc_login(self.profile.email, password=self.profile.password, password_md5=self.profile.password_md5)
         tok = res[0]
 
         if not tok:
-            raise ValueError('Could not login')
+            raise ValueError("Could not login")
 
         self.profile.token = tok
         self.save_profile()
@@ -316,34 +335,40 @@ class WalkingPadControl(Ph4Cmd):
         self.calorie_acc_net = accs[1]
 
         if accs[0] or accs[1]:
-            self.poutput('Calories burned so far this walk: %7.2f kcal, %7.2f kcal net'
-                         % (sum(self.calorie_acc), sum(self.calorie_acc_net)))
+            self.poutput(
+                "Calories burned so far this walk: %7.2f kcal, %7.2f kcal net"
+                % (sum(self.calorie_acc), sum(self.calorie_acc_net))
+            )
 
     def compute_initial_cal(self, status: WalkingPadCurStatus):
         self.last_speed_change_rec = status  # default
 
         mgs = self.loaded_margins
-        if not mgs or not mgs[0] or not mgs[0][0] \
-                or status.time < mgs[0][0]['time'] \
-                or status.dist < mgs[0][0]['dist'] \
-                or status.rtime < mgs[0][0]['rec_time'] \
-                or status.steps < mgs[0][0]['steps']:
+        if (
+            not mgs
+            or not mgs[0]
+            or not mgs[0][0]
+            or status.time < mgs[0][0]["time"]
+            or status.dist < mgs[0][0]["dist"]
+            or status.rtime < mgs[0][0]["rec_time"]
+            or status.steps < mgs[0][0]["steps"]
+        ):
             return
 
         nmg = mgs[0][0]
-        time_to_rtime = abs((status.time - nmg['time']) - (status.rtime - nmg['rec_time']))
+        time_to_rtime = abs((status.time - nmg["time"]) - (status.rtime - nmg["rec_time"]))
 
         # Last statistics from the file is probably too old, do not count it to the current walk.
-        if time_to_rtime > 5*60:
+        if time_to_rtime > 5 * 60:
             return
 
         # Last speed change. Calories for block will be counted from this onward.
         self.last_speed_change_rec = WalkingPadCurStatus()
         self.last_speed_change_rec.speed = status.speed
-        self.last_speed_change_rec.dist = nmg['dist']
-        self.last_speed_change_rec.time = nmg['time']
-        self.last_speed_change_rec.rtime = nmg['rec_time']
-        self.last_speed_change_rec.steps = nmg['steps']
+        self.last_speed_change_rec.dist = nmg["dist"]
+        self.last_speed_change_rec.time = nmg["time"]
+        self.last_speed_change_rec.rtime = nmg["rec_time"]
+        self.last_speed_change_rec.steps = nmg["steps"]
         # if '_segment_time' in nmg:
         #     self.last_speed_change_rec.dist -= mgs[0]['_segment_dist']
         #     self.last_speed_change_rec.time -= mgs[0]['_segment_time']
@@ -351,7 +376,7 @@ class WalkingPadControl(Ph4Cmd):
         #     self.last_speed_change_rec.steps -= mgs[0]['_segment_steps']
 
     async def main(self):
-        logger.debug('App started')
+        logger.debug("App started")
 
         parser = self.argparser()
         self.args_src = sys.argv
@@ -374,37 +399,50 @@ class WalkingPadControl(Ph4Cmd):
         try:
             await self.work()
         except Exception as e:
-            logger.error('Exception in the main entry point: %s' % (e,), exc_info=e)
+            logger.error("Exception in the main entry point: %s" % (e,), exc_info=e)
         finally:
             await self.disconnect()
 
     def argparser(self):
-        parser = argparse.ArgumentParser(description='ph4 WalkingPad controller')
+        parser = argparse.ArgumentParser(description="ph4 WalkingPad controller")
 
-        parser.add_argument('-d', '--debug', dest='debug', action='store_const', const=True,
-                            help='enables debug mode')
-        parser.add_argument('--no-bt', dest='no_bt', action='store_const', const=True,
-                            help='Do not use Bluetooth, no belt interaction enabled')
-        parser.add_argument('--info', dest='info', action='store_const', const=True,
-                            help='enables info logging mode')
-        parser.add_argument('-s', '--scan', dest='scan', action='store_const', const=True,
-                            help='Scan all BLE and exit')
-        parser.add_argument('--cmd', dest='cmd', action='store_const', const=True,
-                            help='Non-interactive mode')
-        parser.add_argument('--ignore-bad-packets', dest='ignore_bad_packets', action='store_const', const=True,
-                            help='Ignore bad packets warnings')
-        parser.add_argument('--stats', dest='stats', type=int, default=None,
-                            help='Enable periodic stats collecting, interval in ms')
-        parser.add_argument('-j', '--json-file', dest='json_file',
-                            help='Write stats to a JSON file')
-        parser.add_argument('-p', '--profile', dest='profile',
-                            help='Profile JSON file')
-        parser.add_argument('-a', '--address', dest='address',
-                            help='Walking pad address (if none, scanner is used). OSX 12 have to scan first, do not use')
-        parser.add_argument('--filter', dest='address_filter',
-                            help='Walking pad address filter, if scanning and multiple devices are found')
-        parser.add_argument('--scan-timeout', dest='scan_timeout', type=float, default=3.0,
-                            help='Scan timeout in seconds, double')
+        parser.add_argument("-d", "--debug", dest="debug", action="store_const", const=True, help="enables debug mode")
+        parser.add_argument(
+            "--no-bt",
+            dest="no_bt",
+            action="store_const",
+            const=True,
+            help="Do not use Bluetooth, no belt interaction enabled",
+        )
+        parser.add_argument("--info", dest="info", action="store_const", const=True, help="enables info logging mode")
+        parser.add_argument("-s", "--scan", dest="scan", action="store_const", const=True, help="Scan all BLE and exit")
+        parser.add_argument("--cmd", dest="cmd", action="store_const", const=True, help="Non-interactive mode")
+        parser.add_argument(
+            "--ignore-bad-packets",
+            dest="ignore_bad_packets",
+            action="store_const",
+            const=True,
+            help="Ignore bad packets warnings",
+        )
+        parser.add_argument(
+            "--stats", dest="stats", type=int, default=None, help="Enable periodic stats collecting, interval in ms"
+        )
+        parser.add_argument("-j", "--json-file", dest="json_file", help="Write stats to a JSON file")
+        parser.add_argument("-p", "--profile", dest="profile", help="Profile JSON file")
+        parser.add_argument(
+            "-a",
+            "--address",
+            dest="address",
+            help="Walking pad address (if none, scanner is used). OSX 12 have to scan first, do not use",
+        )
+        parser.add_argument(
+            "--filter",
+            dest="address_filter",
+            help="Walking pad address filter, if scanning and multiple devices are found",
+        )
+        parser.add_argument(
+            "--scan-timeout", dest="scan_timeout", type=float, default=3.0, help="Scan timeout in seconds, double"
+        )
         return parser
 
     async def stop_belt(self, to_standby=False):
@@ -424,14 +462,14 @@ class WalkingPadControl(Ph4Cmd):
             await self.ctler.start_belt()
 
     async def switch_mode(self, mode):
-        if mode == 'manual':
+        if mode == "manual":
             await self.ctler.switch_mode(WalkingPad.MODE_MANUAL)
-        elif mode == 'auto':
+        elif mode == "auto":
             await self.ctler.switch_mode(WalkingPad.MODE_AUTOMAT)
-        elif mode == 'standby':
+        elif mode == "standby":
             await self.ctler.switch_mode(WalkingPad.MODE_STANDBY)
         else:
-            print('Unknown mode: %s. Supported: manual, auto, standby' % (mode,))
+            print("Unknown mode: %s. Supported: manual, auto, standby" % (mode,))
 
     async def ask_beep(self):
         self.asked_status_beep = True
@@ -446,29 +484,30 @@ class WalkingPadControl(Ph4Cmd):
             self.poutput("Profile is not properly loaded (token, did)")
             return
 
-        mt_int = re.match(r'^(\d+)$', line.strip())
+        mt_int = re.match(r"^(\d+)$", line.strip())
 
         # re_float = r'[+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)'
         # mt_data = re.match(r'^(?:(%s)\s*m)\s+(?:(\d+)\s*s)\s+(?:(%s)\s*m)\s+(?:(%s)\s*m)\s+(?:(%s)\s*m)\s+$')
         cal_acc, timex, dur, dist, steps = 0, 0, 0, 0, 0
         if mt_int:
             idx = int(line)
-            mm = [x for x in self.loaded_margins[idx] if '_segment_dist' in x and x['_segment_dist'] > 0]
-            oldest = min(mm, key=lambda x: x['rec_time'])
-            newest = min(mm, key=lambda x: -x['rec_time'])
+            mm = [x for x in self.loaded_margins[idx] if "_segment_dist" in x and x["_segment_dist"] > 0]
+            oldest = min(mm, key=lambda x: x["rec_time"])
+            newest = min(mm, key=lambda x: -x["rec_time"])
 
             cal_acc = 0
             for r in mm:
-                el_time = r['_segment_rtime']
-                ccal = (el_time / 60) * calories_walk2_minute(r['speed'] / 10., self.profile.weight, 0.00)
-                ccal_net = ccal - (el_time / 60) * calories_rmrcb_minute(self.profile.weight, self.profile.height,
-                                                                         self.profile.age, self.profile.male)
+                el_time = r["_segment_rtime"]
+                ccal = (el_time / 60) * calories_walk2_minute(r["speed"] / 10.0, self.profile.weight, 0.00)
+                ccal_net = ccal - (el_time / 60) * calories_rmrcb_minute(
+                    self.profile.weight, self.profile.height, self.profile.age, self.profile.male
+                )
                 cal_acc += ccal_net
-            timex = int(oldest['rec_time'])
-            dur, dist, steps = newest['time'], newest['dist'], newest['steps']
+            timex = int(oldest["rec_time"])
+            dur, dist, steps = newest["time"], newest["dist"], newest["steps"]
 
-        elif ',' in line:
-            p = [x.strip() for x in line.split(',')]
+        elif "," in line:
+            p = [x.strip() for x in line.split(",")]
             dist, dur, steps, timex, cal_acc = int(p[0]), int(p[1]), int(p[2]), int(p[3]), int(p[4])
 
         else:
@@ -481,22 +520,25 @@ class WalkingPadControl(Ph4Cmd):
                 timex = int(time.time() - dur - 60)
 
         if steps == 0:
-            self.poutput('No record to upload')
+            self.poutput("No record to upload")
             return
 
         # cal, timex, dur, distance, step
-        self.poutput('Adding record: Duration=%5d, distance=%5d, steps=%5d, cal=%5d, time: %d'
-                     % (dur, dist, steps, cal_acc, timex))
+        self.poutput(
+            "Adding record: Duration=%5d, distance=%5d, steps=%5d, cal=%5d, time: %d"
+            % (dur, dist, steps, cal_acc, timex)
+        )
 
         res = await self.ask_yn()
         if not res:
             return
 
-        self.poutput('Uploading...')
-        r = upload_record(self.profile.token, self.profile.did,
-                          cal=int(cal_acc), timex=timex, dur=dur, distance=dist, step=steps)
+        self.poutput("Uploading...")
+        r = upload_record(
+            self.profile.token, self.profile.did, cal=int(cal_acc), timex=timex, dur=dur, distance=dist, step=steps
+        )
         r.raise_for_status()
-        self.poutput('Response: %s, data: %s' % (r, r.json()))
+        self.poutput("Response: %s, data: %s" % (r, r.json()))
 
     async def ask_prompt(self, prompt="", is_int=False):
         ret_val = None
@@ -508,11 +550,11 @@ class WalkingPadControl(Ph4Cmd):
                 ret_val = await ainput(prompt, loop=self.loop)
                 if not is_int:
                     break
-                if is_int and re.match(r'^(\d+)$', ret_val):
+                if is_int and re.match(r"^(\d+)$", ret_val):
                     break
 
         except Exception as e:
-            logger.warning('Exception: %s' % (e,))
+            logger.warning("Exception: %s" % (e,))
         finally:
             await asyncio.sleep(0)
             self.switch_reader(True)
@@ -531,11 +573,11 @@ class WalkingPadControl(Ph4Cmd):
                 await asyncio.sleep(0)
                 yn = await ainput("Do you confirm? (y/n): ", loop=self.loop, streams=self.streams)
                 yn2 = yn.lower().strip()
-                if yn2 in ['y', 'n']:
-                    ret_val = yn2 == 'y'
+                if yn2 in ["y", "n"]:
+                    ret_val = yn2 == "y"
                     break
         except Exception as e:
-            logger.warning('Exception: %s' % (e,))
+            logger.warning("Exception: %s" % (e,))
         finally:
             await asyncio.sleep(0)
             self.remove_reader()
@@ -552,7 +594,7 @@ class WalkingPadControl(Ph4Cmd):
 
     def do_tasks(self, arg):
         """Prints current tasks"""
-        for task in asyncio.Task.all_tasks(loop=self.loop):
+        for task in asyncio.all_tasks(loop=self.loop):
             print(task)
 
     def do_ask_stats(self, line):
@@ -604,21 +646,21 @@ class WalkingPadControl(Ph4Cmd):
         """Login to the walkingpad service, refreshes JWT token for record upload (logs of the application)
         Preferably, use `adb logcat | grep 'user='` when logging in with the Android app to capture JWT"""
         try:
-            self.poutput('Logging in...')
+            self.poutput("Logging in...")
             r = self.login()
-            self.poutput('Logged in. Response: %s' % (r,))
+            self.poutput("Logged in. Response: %s" % (r,))
         except Exception as e:
-            logger.error('Could not login: %s' % (e,), exc_info=e)
+            logger.error("Could not login: %s" % (e,), exc_info=e)
 
     def do_margins(self, line):
         target = int(line) if line else None
         for i, m in enumerate(self.loaded_margins):
             if target is not None and i != target:
                 continue
-            print('='*80, 'Margin %2d, records: %3d' % (i, len(m)))
+            print("=" * 80, "Margin %2d, records: %3d" % (i, len(m)))
             print(json.dumps(self.analysis.remove_records([m])[0], indent=2))
-            print('- ' * 40, 'Margin %2d, records: %3d' % (i, len(m)))
-        print('Num margins: %s' % (len(self.loaded_margins),))
+            print("- " * 40, "Margin %2d, records: %3d" % (i, len(m)))
+        print("Num margins: %s" % (len(self.loaded_margins),))
 
     do_q = do_quit
     do_Q = do_quit
@@ -627,7 +669,7 @@ class WalkingPadControl(Ph4Cmd):
 def main():
     try:
         loop = asyncio.get_running_loop()
-    except:
+    except Exception:
         loop = asyncio.new_event_loop()
 
     loop.set_debug(True)
@@ -638,6 +680,5 @@ def main():
     # asyncio.run(br.main())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
