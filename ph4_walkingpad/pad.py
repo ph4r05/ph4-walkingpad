@@ -71,7 +71,11 @@ class Scanner:
         dev = await scanner.discover(timeout=timeout, **kwargs)
         for i in range(len(dev)):
             # Print the devices discovered
-            info_str = ', '.join(["[%2d]" % i, str(dev[i].address), str(dev[i].name), str(dev[i].metadata["uuids"])])
+            info_str = ', '.join(["[%2d]" % i,
+                                  str(dev[i].address),
+                                  str(dev[i].name),
+                                  str(dev[i].metadata["uuids"] if "uuids" in dev[i].metadata else ""),
+                                  ])
             logger.info("Device: %s" % info_str)
 
             # Put devices information into list
@@ -80,7 +84,7 @@ class Scanner:
             self.devices_dict[dev[i].address].append(dev[i].metadata["uuids"])
             self.devices_list.append(dev[i].address)
 
-            if dev_name and dev_name in dev[i].name.lower():
+            if dev_name and dev[i].name and dev_name in dev[i].name.lower():
                 self.walking_belt_candidates.append(dev[i])
 
             elif matcher and matcher(dev[i].name):
