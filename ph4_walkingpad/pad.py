@@ -4,11 +4,12 @@
 import asyncio
 import binascii
 import logging
-import time
 import platform
+import time
+from dataclasses import dataclass, field
+from typing import Optional
 
 import bleak
-from bleak import discover
 from bleak import BleakClient
 
 # typing
@@ -28,7 +29,6 @@ class Scanner:
         "00002902-0000-1000-8000-00805f9b34fb",
         "00010203-0405-0607-0809-0a0b0c0d1912",
         "00002901-0000-1000-8000-00805f9b34fb",
-
         "00002a00-0000-1000-8000-00805f9b34fb",
         "00002a01-0000-1000-8000-00805f9b34fb",
         "00002a04-0000-1000-8000-00805f9b34fb",
@@ -42,28 +42,26 @@ class Scanner:
         "00010203-0405-0607-0809-0a0b0c0d2b12",
     ]
 
-    BLEAK_KWARGS = {
-        "service_uuids": UUIDS
-    }
+    BLEAK_KWARGS = {"service_uuids": UUIDS}
 
     def __init__(self):
         self.devices_dict = {}
         self.devices_list = []
         self.receive_data = []
-        self.walking_belt_candidates = []  # type: list[BLEDevice]
+        self.walking_belt_candidates: list[BLEDevice] = []
 
     @staticmethod
     def is_darwin():
         try:
-            return platform.system().lower() == 'darwin'
-        except:
+            return platform.system().lower() == "darwin"
+        except Exception:
             return False
 
     @staticmethod
     def get_bleak_kwargs():
         return Scanner.BLEAK_KWARGS if Scanner.is_darwin() else {}
 
-    async def scan(self, timeout=3.0, dev_name='walkingpad', matcher=None):
+    async def scan(self, timeout=3.0, dev_name="walkingpad", matcher=None):
         kwargs = Scanner.get_bleak_kwargs()
         logger.info("Scanning for peripherals...")
         logger.debug("Scanning kwargs: %s" % (kwargs,))
@@ -71,11 +69,14 @@ class Scanner:
         dev = await scanner.discover(timeout=timeout, **kwargs)
         for i in range(len(dev)):
             # Print the devices discovered
-            info_str = ', '.join(["[%2d]" % i,
-                                  str(dev[i].address),
-                                  str(dev[i].name),
-                                  str(dev[i].metadata["uuids"] if "uuids" in dev[i].metadata else ""),
-                                  ])
+            info_str = ", ".join(
+                [
+                    "[%2d]" % i,
+                    str(dev[i].address),
+                    str(dev[i].name),
+                    str(dev[i].metadata["uuids"] if "uuids" in dev[i].metadata else ""),
+                ]
+            )
             logger.info("Device: %s" % info_str)
 
             # Put devices information into list
@@ -134,7 +135,7 @@ class WalkingPad:
 
     @staticmethod
     def int2byte(val, width=3):
-        return [(val >> (8 * (width - 1 - i)) & 0xff) for i in range(width)]
+        return [(val >> (8 * (width - 1 - i)) & 0xFF) for i in range(width)]
 
     @staticmethod
     def byte2int(val, width=3):
@@ -146,18 +147,18 @@ class WalkingPad:
         return cmd
 
 
+@dataclass
 class WalkingPadCurStatus:
-    def __init__(self):
-        self.raw = None
-        self.dist = 0
-        self.time = 0
-        self.steps = 0
-        self.speed = 0
-        self.controller_button = 0
-        self.app_speed = 0
-        self.belt_state = 0
-        self.manual_mode = 0
-        self.rtime = 0
+    raw: Optional[bytearray] = field(default=None)
+    dist: int = 0
+    time: int = 0
+    steps: int = 0
+    speed: int = 0
+    controller_button: int = 0
+    app_speed: int = 0
+    belt_state: int = 0
+    manual_mode: int = 0
+    rtime: float = 0.0
 
     def load_from(self, cmd):
         self.raw = bytearray(cmd)
@@ -178,26 +179,36 @@ class WalkingPadCurStatus:
     @staticmethod
     def from_data(cmd):
         if not WalkingPadCurStatus.check_type(cmd):
-            raise ValueError('Incorrect message type, could not parse')
+            raise ValueError("Incorrect message type, could not parse")
         m = WalkingPadCurStatus()
         m.load_from(cmd)
         return m
 
     def __str__(self):
-        return 'WalkingPadCurStatus(dist=%s, time=%s, steps=%s, speed=%s, state=%s, ' \
-               'mode=%s, app_speed=%s, button=%s, rest=%s)' \
-               % (self.dist / 100, self.time, self.steps, self.speed / 10, self.belt_state,
-                  self.manual_mode, self.app_speed / 30 if self.app_speed > 0 else 0, self.manual_mode,
-                  binascii.hexlify(bytearray([self.raw[15], self.raw[17]])).decode('utf8'))
+        return (
+            "WalkingPadCurStatus(dist=%s, time=%s, steps=%s, speed=%s, state=%s, "
+            "mode=%s, app_speed=%s, button=%s, rest=%s)"
+            % (
+                self.dist / 100,
+                self.time,
+                self.steps,
+                self.speed / 10,
+                self.belt_state,
+                self.manual_mode,
+                self.app_speed / 30 if self.app_speed > 0 else 0,
+                self.manual_mode,
+                binascii.hexlify(bytearray([self.raw[15], self.raw[17]])).decode("utf8"),
+            )
+        )
 
 
+@dataclass
 class WalkingPadLastStatus:
-    def __init__(self):
-        self.raw = None
-        self.dist = 0
-        self.time = 0
-        self.steps = 0
-        self.rtime = 0
+    raw: Optional[bytearray] = field(default=None)
+    dist: int = 0
+    time: int = 0
+    steps: int = 0
+    rtime: float = 0.0
 
     def load_from(self, cmd):
         self.raw = bytearray(cmd)
@@ -213,14 +224,18 @@ class WalkingPadLastStatus:
     @staticmethod
     def from_data(cmd):
         if not WalkingPadLastStatus.check_type(cmd):
-            raise ValueError('Incorrect message type, could not parse')
+            raise ValueError("Incorrect message type, could not parse")
         m = WalkingPadLastStatus()
         m.load_from(cmd)
         return m
 
     def __str__(self):
-        return 'WalkingPadLastStatus(dist=%s, time=%s, steps=%s, rest=%s)' \
-               % (self.dist / 100, self.time, self.steps, binascii.hexlify(self.raw[2:8]).decode('utf8'))
+        return "WalkingPadLastStatus(dist=%s, time=%s, steps=%s, rest=%s)" % (
+            self.dist / 100,
+            self.time,
+            self.steps,
+            binascii.hexlify(self.raw[2:8]).decode("utf8"),
+        )
 
 
 class Controller:
@@ -252,8 +267,8 @@ class Controller:
 
     def notif_handler(self, sender, data):
         logger_fnc = logger.info if self.log_messages_info else logger.debug
-        msg_hex = ', '.join('{:02x}'.format(x) for x in data)
-        logger_fnc('Msg: %s' % msg_hex)
+        msg_hex = ", ".join("{:02x}".format(x) for x in data)
+        logger_fnc("Msg: %s" % msg_hex)
         already_notified = False
 
         try:
@@ -264,7 +279,7 @@ class Controller:
                 self.on_cur_status_received(sender, m)
                 if self.handler_cur_status:
                     self.handler_cur_status(sender, m)
-                logger_fnc('Status: %s' % (m,))
+                logger_fnc("Status: %s" % (m,))
 
             elif WalkingPadLastStatus.check_type(data):
                 m = WalkingPadLastStatus.from_data(data)
@@ -273,7 +288,7 @@ class Controller:
                 self.on_last_status_received(sender, m)
                 if self.handler_last_status:
                     self.handler_last_status(sender, m)
-                logger_fnc('Record: %s' % (m,))
+                logger_fnc("Record: %s" % (m,))
 
             self.on_message_received(sender, data, already_notified)
             if self.handler_message:
@@ -304,7 +319,7 @@ class Controller:
     async def connect(self, address=None):
         address = address or self.address
         if not address:
-            raise ValueError('No address given to connect to')
+            raise ValueError("No address given to connect to")
 
         logger.info("Connecting to %s" % (address,))
         kwargs = Scanner.get_bleak_kwargs()
@@ -326,18 +341,18 @@ class Controller:
         return r
 
     async def switch_mode(self, mode: int):
-        cmd = bytearray([247, 162, 2, mode, 0xff, 253])
+        cmd = bytearray([247, 162, 2, mode, 0xFF, 253])
         return await self.send_cmd(cmd)
 
     async def change_speed(self, speed: int):
-        cmd = bytearray([247, 162, 1, speed, 0xff, 253])
+        cmd = bytearray([247, 162, 1, speed, 0xFF, 253])
         return await self.send_cmd(cmd)
 
     async def stop_belt(self):
         return await self.change_speed(0)
 
     async def start_belt(self):
-        cmd = bytearray([247, 162, 4, 1, 0xff, 253])
+        cmd = bytearray([247, 162, 4, 1, 0xFF, 253])
         return await self.send_cmd(cmd)
 
     async def ask_profile(self, profile_idx=0):
@@ -404,10 +419,10 @@ class Controller:
                 value = None
                 if "read" in char.properties:
                     try:
-                        if self.do_read_chars and char.uuid != '0000fe01-0000-1000-8000-00805f9b34fb':
+                        if self.do_read_chars and char.uuid != "0000fe01-0000-1000-8000-00805f9b34fb":
                             value = bytes(await client.read_gatt_char(char.uuid))
                     except Exception as e:
-                        logger.info('read failed for %s' % (char.uuid,))
+                        logger.info("read failed for %s" % (char.uuid,))
                         value = str(e).encode()
 
                 logger.info(
@@ -420,10 +435,10 @@ class Controller:
                     )
                 )
 
-                if char.uuid.startswith('0000fe01'):
+                if char.uuid.startswith("0000fe01"):
                     self.char_fe01 = char
 
-                if char.uuid.startswith('0000fe02'):
+                if char.uuid.startswith("0000fe02"):
                     self.char_fe02 = char
 
                 for descriptor in char.descriptors:
@@ -435,13 +450,10 @@ class Controller:
                     )
 
         try:
-            logger.info('Enabling notification for %s' % (self.char_fe01.uuid,))
+            logger.info("Enabling notification for %s" % (self.char_fe01.uuid,))
             await client.start_notify(self.char_fe01.uuid, self.notif_handler)
 
         except Exception as e:
             logger.warning("Notify failed: %s" % (e,))
 
-        logger.info('Service enumeration done')
-
-
-
+        logger.info("Service enumeration done")

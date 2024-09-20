@@ -14,8 +14,8 @@ import asyncio
 import logging
 import sys
 
-from ph4acmd2 import Cmd as Cmd2
 from blessed import Terminal
+from ph4acmd2 import Cmd as Cmd2
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class Ph4Cmd(Cmd2):
             sys.stdout.flush()
 
     def looper(self, loop):
-        logger.debug('Starting looper for loop %s' % (loop,))
+        logger.debug("Starting looper for loop %s" % (loop,))
         asyncio.set_event_loop(loop)
         loop.run_forever()
 
@@ -57,6 +57,6 @@ class Ph4Cmd(Cmd2):
             if width is None or width <= 0:
                 return 80
             return width
-        except:
+        except Exception:
             pass
         return 80

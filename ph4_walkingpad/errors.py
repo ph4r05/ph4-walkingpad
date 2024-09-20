@@ -1,5 +1,5 @@
-import traceback
 import sys
+import traceback
 
 
 def error_message(e, message=None, cause=None):
@@ -13,15 +13,16 @@ def error_message(e, message=None, cause=None):
     if message is None and cause is None:
         return None
     elif message is None:
-        return '%s, caused by %r' % (e.__class__, cause)
+        return "%s, caused by %r" % (e.__class__, cause)
     elif cause is None:
         return message
     else:
-        return '%s, caused by %r' % (message, cause)
+        return "%s, caused by %r" % (message, cause)
 
 
 class Error(Exception):
     """Generic EB client error."""
+
     def __init__(self, message=None, cause=None, do_message=True):
         super(Error, self).__init__(error_message(self, message, cause))
         self.cause = cause

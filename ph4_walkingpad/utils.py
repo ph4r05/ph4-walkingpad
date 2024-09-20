@@ -1,12 +1,12 @@
 import logging
-import sys
 import re
+import sys
 
 
 def try_fnc(fnc):
     try:
         return fnc()
-    except:
+    except Exception:
         pass
 
 
@@ -24,11 +24,13 @@ def setup_logging():
 
 
 def parse_time_string(timx):
-    mt = re.match(r'^(?:([\d.]+)(?:(?<=\d)h)?)?\s*\b(?:([\d.]+)(?:(?<=\d)m)?)?\s*\b(?:([\d.]+)(?:(?<=\d)s)?)?\s*$', timx.strip())
-    if ':' in timx:
-        parts = timx.split(':')
+    mt = re.match(
+        r"^(?:([\d.]+)(?:(?<=\d)h)?)?\s*\b(?:([\d.]+)(?:(?<=\d)m)?)?\s*\b(?:([\d.]+)(?:(?<=\d)s)?)?\s*$", timx.strip()
+    )
+    if ":" in timx:
+        parts = timx.split(":")
         if len(parts) < 2 or len(parts) > 3:
-            raise ValueError('Time format error')
+            raise ValueError("Time format error")
 
         if len(parts) == 2:
             return float(parts[0]) * 3600 + float(parts[1]) * 60
