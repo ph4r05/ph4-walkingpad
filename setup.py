@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-version = "1.0.0"
+version = "1.0.1"
 
 # Please update tox.ini when modifying dependency version requirements
 install_requires = [
@@ -9,8 +9,8 @@ install_requires = [
     "future",
     "asyncio",
     "coloredlogs",
-    "bleak>=0.14.1",
-    "ph4-acmd2==0.0.5",
+    "bleak>=0.15.1",
+    "ph4-acmd2>=0.0.6",
     "blessed",
     "requests",
     "aioconsole==0.3.1",

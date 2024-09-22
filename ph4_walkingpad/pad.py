@@ -66,30 +66,34 @@ class Scanner:
         logger.info("Scanning for peripherals...")
         logger.debug("Scanning kwargs: %s" % (kwargs,))
         scanner = bleak.BleakScanner(**kwargs)
-        dev = await scanner.discover(timeout=timeout, **kwargs)
-        for i in range(len(dev)):
+        dev_map = await scanner.discover(timeout=timeout, return_adv=True, **kwargs)
+        dev = None
+
+        for i, dev_addr in enumerate(dev_map):
+            dev, advertisements = dev_map[dev_addr]
+
             # Print the devices discovered
             info_str = ", ".join(
                 [
                     "[%2d]" % i,
-                    str(dev[i].address),
-                    str(dev[i].name),
-                    str(dev[i].metadata["uuids"] if "uuids" in dev[i].metadata else ""),
+                    str(dev.address),
+                    str(dev.name),
+                    str(advertisements.service_uuids),
                 ]
             )
             logger.info("Device: %s" % info_str)
 
             # Put devices information into list
-            self.devices_dict[dev[i].address] = []
-            self.devices_dict[dev[i].address].append(dev[i].name)
-            self.devices_dict[dev[i].address].append(dev[i].metadata["uuids"])
-            self.devices_list.append(dev[i].address)
+            self.devices_dict[dev.address] = []
+            self.devices_dict[dev.address].append(dev.name)
+            self.devices_dict[dev.address].append(advertisements.service_uuids)
+            self.devices_list.append(dev.address)
 
-            if dev_name and dev[i].name and dev_name in dev[i].name.lower():
-                self.walking_belt_candidates.append(dev[i])
+            if dev_name and dev.name and dev_name in dev.name.lower():
+                self.walking_belt_candidates.append(dev)
 
-            elif matcher and matcher(dev[i].name):
-                self.walking_belt_candidates.append(dev[i])
+            elif matcher and matcher(dev.name):
+                self.walking_belt_candidates.append(dev)
 
         if not dev:
             logger.warning("Scanning ended up with no results")
