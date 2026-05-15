@@ -170,6 +170,77 @@ The benefit of having detailed data is an option to analyze data from the whole 
 
 Also, if the original app fails to fetch the final state from the Belt, having continuous data stream is helpful to avoid data loss.
 
+## FTMS Support
+
+Newer Kingsmith WalkingPad models (PH4, X21, etc.) use the standard Bluetooth **FTMS** (Fitness Machine Service) profile
+instead of the proprietary Kingsmith binary protocol on characteristics `0xFE01`/`0xFE02` used by the A1.
+
+### Installation
+
+Install with the same package — the FTMS controller is included:
+
+```bash
+pip install ph4-walkingpad
+```
+
+### Usage
+
+The `ftms-walkingpad-ctl` CLI provides start, stop, and monitor commands:
+
+```bash
+# Start the belt at 3.0 km/h (default)
+ftms-walkingpad-ctl --address <BLE_ADDRESS> start
+ftms-walkingpad-ctl --address <BLE_ADDRESS> start --speed 5.0
+
+# Pause/stop the belt
+ftms-walkingpad-ctl --address <BLE_ADDRESS> stop
+
+# Monitor telemetry (speed, elapsed time, belt state)
+ftms-walkingpad-ctl --address <BLE_ADDRESS> monitor
+```
+
+### Python API
+
+```python
+import asyncio
+from ph4_walkingpad.ftms_pad import WalkingPadFTMS
+
+async def main():
+    async with WalkingPadFTMS("XX:XX:XX:XX:XX:XX") as pad:
+        # Start at 3.0 km/h
+        await pad.start(speed=3.0)
+
+        # Change speed
+        await pad.set_speed(5.0)
+
+        # Pause
+        await pad.pause()
+
+asyncio.run(main())
+```
+
+The command queue handles all timing quirks internally — no `sleep()` calls needed:
+
+- **Auto-request control** before any command
+- **Auto-wait for RUNNING state** before Set Speed (2.5s startup delay)
+- **Auto-retry on "Control Not Permitted"** with exponential backoff (0.5s, 1.0s, 1.5s, 2.0s)
+- **Speed command cancellation** — rapid `set_speed` calls cancel stale ones, only the latest executes
+- **Pause cancels pending speed changes**
+
+### FTMS Protocol Details
+
+| UUID | Description |
+|------|-------------|
+| `00001826-...` | FTMS Service |
+| `00002ad9-...` | Control Point (write/indicate) |
+| `00002acd-...` | Treadmill Data (notify) |
+
+Control Point opcodes: `0x00` Request Control, `0x02` Set Speed (uint16 LE, km/h × 100),
+`0x07` Start/Resume, `0x08 0x02` Pause.
+
+> **Note:** Kingsmith PH4 puts speed at `bytes[2:4]` regardless of the FTMS flags field
+> (non-standard). The controller handles this empirically.
+
 ### Reversing Belt API
 
 #### Easy way - Android logs

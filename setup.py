@@ -75,6 +75,7 @@ setup(
         "console_scripts": [
             "ph4-walkingpad-ctl = ph4_walkingpad.main:main",
             "ph4-cal = ph4_walkingpad.cal:main",
+            "ftms-walkingpad-ctl = ph4_walkingpad.ftms_cli:main",
         ],
     },
 )
